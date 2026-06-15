@@ -310,5 +310,16 @@ def main():
     
     print("\n✅ Done!")
 
+    ats_count = len(config.get('ats_companies', []))
+    custom_count = len(config.get('custom_pages', []))
+    total_companies = ats_count + custom_count
+
+    ats_count = len(config.get('ats_companies', []))
+    custom_count = len(config.get('custom_pages', []))
+    total_companies = ats_count + custom_count
+
+    if "--heartbeat" in sys.argv and not test_mode:
+        notifier.send(f"🤖 <b>Daily Heartbeat</b>\n\nThe Hybrid Hunter is alive and hunting. Successfully scanned {total_companies} elite tech companies. No new matches right now, but I'm watching closely!")
+
 if __name__ == "__main__":
     main()

@@ -1,0 +1,33 @@
+name: Daily Heartbeat
+
+on:
+  schedule:
+    # 15:15 UTC is exactly 8:45 PM IST
+    - cron: '15 15 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        playwright install --with-deps chromium
+
+    - name: Send Heartbeat Ping
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: python hybrid_hunter.py --heartbeat
