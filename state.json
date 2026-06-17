@@ -5,7 +5,7 @@
   },
   "Citadel": {
     "jobs": [],
-    "hash": "1e1fa19f4b9a7abc055ba5fe6c4333d8"
+    "hash": "dd7f0268601c4a5c30e9fee89a66b47c"
   },
   "Stripe": {
     "jobs": [
@@ -19,11 +19,11 @@
   },
   "Goldman Sachs": {
     "jobs": [],
-    "hash": "50b9f01f16a1c1414e0c163af404a0c4"
+    "hash": "683684dc928a1c697a595cb11a8bc704"
   },
   "Morgan Stanley": {
     "jobs": [],
-    "hash": "a5de5166e91959fb0def78703e9b3646"
+    "hash": "87bdc04c79074f7ed72fd516237ef9ca"
   },
   "Two Sigma": {
     "jobs": [],
@@ -81,11 +81,11 @@
   },
   "Microsoft": {
     "jobs": [],
-    "hash": "c788276509704319cc6d077c09f2e2bf"
+    "hash": "bea8acb2b6a2db90c59f3452d04158d5"
   },
   "Amazon": {
     "jobs": [],
-    "hash": "d447b8a0feabd7fbdd449e4607267591"
+    "hash": "b9547fa73fd84cf92eff982f8e4bc9b1"
   },
   "Apple": {
     "jobs": [],
@@ -97,6 +97,6 @@
   },
   "Uber": {
     "jobs": [],
-    "hash": "876e3db37a8bf409190efde3be418768"
+    "hash": "1eec62e4d275bced9364fa7b1093fcd9"
   }
 }
