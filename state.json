@@ -5,7 +5,7 @@
   },
   "Citadel": {
     "jobs": [],
-    "hash": "869d6c7eb95f0eda5a217f2306403181"
+    "hash": "1e1fa19f4b9a7abc055ba5fe6c4333d8"
   },
   "Stripe": {
     "jobs": [
@@ -19,7 +19,7 @@
   },
   "Goldman Sachs": {
     "jobs": [],
-    "hash": "77a7431d8536826d5125d363b837748d"
+    "hash": "50b9f01f16a1c1414e0c163af404a0c4"
   },
   "Morgan Stanley": {
     "jobs": [],
@@ -27,7 +27,7 @@
   },
   "Two Sigma": {
     "jobs": [],
-    "hash": "cb668321f9eb802ca4c79104f59ed5af"
+    "hash": "7abbb519fdf326f8830ba24ba86245cd"
   },
   "Hudson River Trading": {
     "jobs": [],
@@ -35,18 +35,19 @@
   },
   "Optiver": {
     "jobs": [],
-    "hash": "6ef0f9ce7dfe7bd9ef48ef82a33d79ef"
+    "hash": "85df5d7b36f8f409a296957082702d11"
   },
   "DE Shaw": {
     "jobs": [],
-    "hash": "a9a1977b2e5f0f17748eb0958abe82dc"
+    "hash": "8c0adcb1bbe30f64ef97e6ac787d1a3b"
   },
   "Rubrik": {
     "jobs": [
       "7928163",
       "7928159",
       "7770714",
-      "7765355"
+      "7765355",
+      "8012637"
     ],
     "hash": ""
   },
@@ -80,15 +81,15 @@
   },
   "Microsoft": {
     "jobs": [],
-    "hash": "548fb9759504de1b0f1852f5366df9ed"
+    "hash": "c788276509704319cc6d077c09f2e2bf"
   },
   "Amazon": {
     "jobs": [],
-    "hash": "32ba6b05524f947cf1d817bd1c10aaa7"
+    "hash": "d447b8a0feabd7fbdd449e4607267591"
   },
   "Apple": {
     "jobs": [],
-    "hash": "786aba800096e993439f82b928857b44"
+    "hash": "27f30a6e785bc1df4a3b553f6e75dd22"
   },
   "NVIDIA": {
     "jobs": [],
@@ -96,6 +97,6 @@
   },
   "Uber": {
     "jobs": [],
-    "hash": "c62384ab06f4ddfda4af5187d9d7c2a6"
+    "hash": "876e3db37a8bf409190efde3be418768"
   }
 }
