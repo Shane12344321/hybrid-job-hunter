@@ -1,11 +1,11 @@
 {
   "Google India Jobs": {
     "jobs": [],
-    "hash": "f977b367f8bf384eaa94361c0c4de0de"
+    "hash": "1098f4db6cb11feb158df45eadc0ddb0"
   },
   "Citadel": {
     "jobs": [],
-    "hash": "869d6c7eb95f0eda5a217f2306403181"
+    "hash": "532cb72bc683c616f855e1bfa20a6cc2"
   },
   "Stripe": {
     "jobs": [
@@ -19,15 +19,15 @@
   },
   "Goldman Sachs": {
     "jobs": [],
-    "hash": "028927530796ffc28dcba7b8576f3aca"
+    "hash": "c75f8f3449b46faef43fe47979606043"
   },
   "Morgan Stanley": {
     "jobs": [],
-    "hash": "87bdc04c79074f7ed72fd516237ef9ca"
+    "hash": "39630a386ba29f5874837c83e1674e9f"
   },
   "Two Sigma": {
     "jobs": [],
-    "hash": "99adc85925b14efe0960a9eafc4cce3a"
+    "hash": "535099ce9dc086efa147445ad15aa0fe"
   },
   "Hudson River Trading": {
     "jobs": [],
@@ -35,11 +35,11 @@
   },
   "Optiver": {
     "jobs": [],
-    "hash": "85df5d7b36f8f409a296957082702d11"
+    "hash": "2343fb4e8fa894fbe198897c9b6c6a75"
   },
   "DE Shaw": {
     "jobs": [],
-    "hash": "8c0adcb1bbe30f64ef97e6ac787d1a3b"
+    "hash": "0fe095ae3034955de63945472baa731f"
   },
   "Rubrik": {
     "jobs": [
@@ -81,15 +81,15 @@
   },
   "Microsoft": {
     "jobs": [],
-    "hash": "e5c48b25a4a16cdbcc5c844a8d28e3ef"
+    "hash": "667ae43f33de9871df1142e715fe89a9"
   },
   "Amazon": {
     "jobs": [],
-    "hash": "f407287e5a70b89a946983f2b3051e45"
+    "hash": "0eae7496e77d25865afd020ae27402d9"
   },
   "Apple": {
     "jobs": [],
-    "hash": "27f30a6e785bc1df4a3b553f6e75dd22"
+    "hash": "f1ca4562b82214aa3fdcaf3a20c442cb"
   },
   "NVIDIA": {
     "jobs": [],
@@ -97,6 +97,6 @@
   },
   "Uber": {
     "jobs": [],
-    "hash": "a527af088444b7bec6e545a8e5599faf"
+    "hash": "059e8be61238b9ebe92ab79c4bcca8c1"
   }
 }
