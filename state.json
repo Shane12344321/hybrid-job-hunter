@@ -5,7 +5,7 @@
   },
   "Citadel": {
     "jobs": [],
-    "hash": "8ffe9804ee51aaf0aa1e9bba799f7025"
+    "hash": "9211c723c707e27cd2d29dcbc5583b8d"
   },
   "Stripe": {
     "jobs": [
@@ -81,11 +81,11 @@
   },
   "Microsoft": {
     "jobs": [],
-    "hash": "f78d66d1758533a4e8b642408648e0dc"
+    "hash": "3bebd9ddd806d29bab9c2f44dbcea9ac"
   },
   "Amazon": {
     "jobs": [],
-    "hash": "b70693cd1bd804ef315756a5ef08b5f9"
+    "hash": "7c0398b2103e8bacf35aa16eb36c8af1"
   },
   "Apple": {
     "jobs": [],
