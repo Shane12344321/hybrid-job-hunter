@@ -5,7 +5,7 @@
   },
   "Citadel": {
     "jobs": [],
-    "hash": "3ad5358b07e35c8c66ee764381f42e06"
+    "hash": "a3a57b2d7c349fa4a4317c6908fffdce"
   },
   "Stripe": {
     "jobs": [
@@ -27,7 +27,7 @@
   },
   "Two Sigma": {
     "jobs": [],
-    "hash": "535099ce9dc086efa147445ad15aa0fe"
+    "hash": "d0b8acb6c0561b20da575e40ce5f24f9"
   },
   "Hudson River Trading": {
     "jobs": [],
@@ -81,15 +81,15 @@
   },
   "Microsoft": {
     "jobs": [],
-    "hash": "884af486e084835eeae6bc1a6d206ee0"
+    "hash": "8024295fe2d70a758e54b8e8eb181443"
   },
   "Amazon": {
     "jobs": [],
-    "hash": "a087a655838f061328a2ad2f2168a296"
+    "hash": "78d9b9b930597b4077fb7a8ed2562ef8"
   },
   "Apple": {
     "jobs": [],
-    "hash": "f1ca4562b82214aa3fdcaf3a20c442cb"
+    "hash": "27f30a6e785bc1df4a3b553f6e75dd22"
   },
   "NVIDIA": {
     "jobs": [],
@@ -97,6 +97,6 @@
   },
   "Uber": {
     "jobs": [],
-    "hash": "a527af088444b7bec6e545a8e5599faf"
+    "hash": "559070e513a511032f82da4a96a345e3"
   }
 }
