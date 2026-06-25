@@ -1,11 +1,11 @@
 {
   "Google India Jobs": {
     "jobs": [],
-    "hash": "fe7e5102da07b6f00c89e01d2f048a3e"
+    "hash": "c8666c6e16a3a542886006ad61e42987"
   },
   "Citadel": {
     "jobs": [],
-    "hash": "240b6a3568546897fa62e6279aa2b95f"
+    "hash": "25b4d07f07bd57aba5e3d870d2690125"
   },
   "Stripe": {
     "jobs": [
@@ -19,7 +19,7 @@
   },
   "Goldman Sachs": {
     "jobs": [],
-    "hash": "ea25c995a0b2dceb6d68c6610903dad3"
+    "hash": "522d2c9fd38384f2c32f4e5aefae831a"
   },
   "Morgan Stanley": {
     "jobs": [],
@@ -81,15 +81,15 @@
   },
   "Microsoft": {
     "jobs": [],
-    "hash": "bba2ced42e5dc66aee3f039c2da85a91"
+    "hash": "40586b8f31dfa920284df1ea4ae07221"
   },
   "Amazon": {
     "jobs": [],
-    "hash": "208d5b0ce0872e82b351ec57afe274fb"
+    "hash": "27926f3b4309182d9d2fe65b74cd3967"
   },
   "Apple": {
     "jobs": [],
-    "hash": "86378b648ada0bd6b3cf38ea4710d408"
+    "hash": "dc4e23333453d6fb0329f834a5a35723"
   },
   "NVIDIA": {
     "jobs": [],
@@ -97,6 +97,6 @@
   },
   "Uber": {
     "jobs": [],
-    "hash": "65a2591ef80bc21efe3ea675c237121a"
+    "hash": "00041d2b27b630a56595ddf9086f347c"
   }
 }
