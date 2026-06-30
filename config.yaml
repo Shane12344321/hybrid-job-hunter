@@ -141,3 +141,7 @@ custom_pages:
 - name: Uber
   url: https://www.uber.com/us/en/careers/list/?query=intern&location=IND
   keyword_filter: true
+- name: Goldman Sachs Summer Analyst India
+  url: https://www.goldmansachs.com/careers/students/programs-and-internships/india/summer-analyst-program
+  keyword_filter: true
+
