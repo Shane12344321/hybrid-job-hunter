@@ -19,129 +19,130 @@ telegram:
   # Do not put actual tokens here; use environment variables or GitHub secrets
   token: ${TELEGRAM_TOKEN}
   chat_id: ${TELEGRAM_CHAT_ID}
-ats_companies:
-- name: Notion
-  ats: ashby
-  slug: notion
-- name: Anthropic
-  ats: greenhouse
-  slug: anthropic
-- name: Cloudflare
-  ats: greenhouse
-  slug: cloudflare
-- name: Stripe
-  ats: greenhouse
-  slug: stripe
-- name: Airbnb
-  ats: greenhouse
-  slug: airbnb
-- name: Scale AI
-  ats: greenhouse
-  slug: scaleai
-- name: Databricks
-  ats: greenhouse
-  slug: databricks
-- name: Robinhood
-  ats: greenhouse
-  slug: robinhood
-- name: Vercel
-  ats: greenhouse
-  slug: vercel
-- name: Linear
-  ats: ashby
-  slug: linear
-- name: Jane Street
-  ats: greenhouse
-  slug: janestreet
-- name: JP Morgan Chase
-  ats: oracle_hcm
-  site_number: CX_1001
-  keyword: intern
-- name: LinkedIn
-  ats: greenhouse
-  slug: linkedin
-- name: Tower Research
-  ats: greenhouse
-  slug: towerresearchcapital
-- name: WorldQuant
-  ats: greenhouse
-  slug: worldquant
-- name: MongoDB
-  ats: greenhouse
-  slug: mongodb
-- name: Confluent
-  ats: ashby
-  slug: confluent
-- name: Rubrik
-  ats: greenhouse
-  slug: rubrik
-- name: Twilio
-  ats: greenhouse
-  slug: twilio
-- name: Dropbox
-  ats: greenhouse
-  slug: dropbox
-- name: Zscaler
-  ats: greenhouse
-  slug: zscaler
-- name: Postman
-  ats: greenhouse
-  slug: postman
-- name: PhonePe
-  ats: greenhouse
-  slug: phonepe
-- name: Cred
-  ats: lever
-  slug: cred
-- name: Thoughtworks
-  ats: greenhouse
-  slug: thoughtworks
-- name: MindTickle
-  ats: lever
-  slug: mindtickle
-- name: Groww
-  ats: greenhouse
-  slug: groww
+ats_companies: []
+# - name: Notion
+#   ats: ashby
+#   slug: notion
+# - name: Anthropic
+#   ats: greenhouse
+#   slug: anthropic
+# - name: Cloudflare
+#   ats: greenhouse
+#   slug: cloudflare
+# - name: Stripe
+#   ats: greenhouse
+#   slug: stripe
+# - name: Airbnb
+#   ats: greenhouse
+#   slug: airbnb
+# - name: Scale AI
+#   ats: greenhouse
+#   slug: scaleai
+# - name: Databricks
+#   ats: greenhouse
+#   slug: databricks
+# - name: Robinhood
+#   ats: greenhouse
+#   slug: robinhood
+# - name: Vercel
+#   ats: greenhouse
+#   slug: vercel
+# - name: Linear
+#   ats: ashby
+#   slug: linear
+# - name: Jane Street
+#   ats: greenhouse
+#   slug: janestreet
+# - name: JP Morgan Chase
+#   ats: oracle_hcm
+#   site_number: CX_1001
+#   keyword: intern
+# - name: LinkedIn
+#   ats: greenhouse
+#   slug: linkedin
+# - name: Tower Research
+#   ats: greenhouse
+#   slug: towerresearchcapital
+# - name: WorldQuant
+#   ats: greenhouse
+#   slug: worldquant
+# - name: MongoDB
+#   ats: greenhouse
+#   slug: mongodb
+# - name: Confluent
+#   ats: ashby
+#   slug: confluent
+# - name: Rubrik
+#   ats: greenhouse
+#   slug: rubrik
+# - name: Twilio
+#   ats: greenhouse
+#   slug: twilio
+# - name: Dropbox
+#   ats: greenhouse
+#   slug: dropbox
+# - name: Zscaler
+#   ats: greenhouse
+#   slug: zscaler
+# - name: Postman
+#   ats: greenhouse
+#   slug: postman
+# - name: PhonePe
+#   ats: greenhouse
+#   slug: phonepe
+# - name: Cred
+#   ats: lever
+#   slug: cred
+# - name: Thoughtworks
+#   ats: greenhouse
+#   slug: thoughtworks
+# - name: MindTickle
+#   ats: lever
+#   slug: mindtickle
+# - name: Groww
+#   ats: greenhouse
+#   slug: groww
 custom_pages:
-- name: Google India Jobs
-  url: https://www.google.com/about/careers/applications/jobs/results/?location=India
-  wait_for_selector: .VfPpkd-Bz112c-LgbsSe
-  css_selector: ul
-  keyword_filter: true
-- name: Citadel
-  url: https://www.citadel.com/careers/open-opportunities/
-  keyword_filter: true
-- name: Goldman Sachs
-  url: https://higher.gs.com/roles?location=Bengaluru%2C%20India&location=Hyderabad%2C%20India
-  keyword_filter: true
-- name: Morgan Stanley
-  url: https://morganstanley.tal.net/vx/lang-en-GB/mobile-0/brand-2/candidate/jobboard/vacancy/1/adv/
-  keyword_filter: true
-- name: Two Sigma
-  url: https://www.twosigma.com/careers/
-  keyword_filter: true
-- name: Optiver
-  url: https://optiver.com/working-at-optiver/career-opportunities/
-  keyword_filter: true
-- name: DE Shaw
-  url: https://www.deshaw.com/careers
-  keyword_filter: true
-- name: Microsoft
-  url: https://jobs.careers.microsoft.com/global/en/search?lc=India&l=en_us&pg=1&pgSz=20&disp=Advanced
-  keyword_filter: true
-- name: Amazon
-  url: https://www.amazon.jobs/en/search?base_query=intern&loc_query=India
-  keyword_filter: true
-- name: Apple
-  url: https://jobs.apple.com/en-in/search?sort=relevance&search=intern&location=india-IND
-  keyword_filter: true
-- name: NVIDIA
-  url: https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite?q=intern&locations=f2e609fe92974a55a05fc1cdc2852122
-  keyword_filter: true
-- name: Uber
-  url: https://www.uber.com/us/en/careers/list/?query=intern&location=IND
-  keyword_filter: true
+# - name: Google India Jobs
+#   url: https://www.google.com/about/careers/applications/jobs/results/?location=India
+#   wait_for_selector: .VfPpkd-Bz112c-LgbsSe
+#   css_selector: ul
+#   keyword_filter: true
+# - name: Citadel
+#   url: https://www.citadel.com/careers/open-opportunities/
+#   keyword_filter: true
+# - name: Goldman Sachs
+#   url: https://higher.gs.com/roles?location=Bengaluru%2C%20India&location=Hyderabad%2C%20India
+#   keyword_filter: true
+# - name: Morgan Stanley
+#   url: https://morganstanley.tal.net/vx/lang-en-GB/mobile-0/brand-2/candidate/jobboard/vacancy/1/adv/
+#   keyword_filter: true
+# - name: Two Sigma
+#   url: https://www.twosigma.com/careers/
+#   keyword_filter: true
+# - name: Optiver
+#   url: https://optiver.com/working-at-optiver/career-opportunities/
+#   keyword_filter: true
+# - name: DE Shaw
+#   url: https://www.deshaw.com/careers
+#   keyword_filter: true
+# - name: Microsoft
+#   url: https://jobs.careers.microsoft.com/global/en/search?lc=India&l=en_us&pg=1&pgSz=20&disp=Advanced
+#   keyword_filter: true
+# - name: Amazon
+#   url: https://www.amazon.jobs/en/search?base_query=intern&loc_query=India
+#   keyword_filter: true
+# - name: Apple
+#   url: https://jobs.apple.com/en-in/search?sort=relevance&search=intern&location=india-IND
+#   keyword_filter: true
+# - name: NVIDIA
+#   url: https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite?q=intern&locations=f2e609fe92974a55a05fc1cdc2852122
+#   keyword_filter: true
+# - name: Uber
+#   url: https://www.uber.com/us/en/careers/list/?query=intern&location=IND
+#   keyword_filter: true
 - name: Goldman Sachs Summer Analyst India
   url: https://www.goldmansachs.com/careers/students/programs-and-internships/india/summer-analyst-program
   keyword_filter: true
+  location_filter: false
 
