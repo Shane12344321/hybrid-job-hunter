@@ -1,8 +1,25 @@
 # Hybrid Job Hunter 🎯
 
 A hybrid job hunting automation script that combines the best of both worlds:
-1. **API-driven precision** for standard ATS boards (Ashby, Lever, Greenhouse) - *Fast, reliable, zero false positives.*
+1. **API-driven precision** for standard ATS boards (Ashby, Lever, Greenhouse, Oracle HCM, Workday, Amazon, Microsoft) - *Fast, reliable, zero false positives.*
 2. **JS-rendering web scraper** using Playwright for custom careers pages (like Google, Jane Street, Citadel) - *Like changedetection.io, handles dynamic content and Javascript.*
+
+### Supported ATS types
+
+| `ats:` | Reach | Notes |
+|--------|-------|-------|
+| `ashby` | Ashby job boards | `slug` |
+| `lever` | Lever postings | `slug` |
+| `greenhouse` | Greenhouse boards | `slug` |
+| `oracle_hcm` | Oracle HCM Cloud (e.g. JP Morgan) | `host`, `site_number`, `keyword` |
+| `workday` | Workday CXS boards (NVIDIA, Citi, BlackRock, Adobe, Salesforce, Sprinklr, Fractal, …) | `tenant`, `wd_host`, `site`, optional `search`/`include_multi_location` |
+| `amazon` | amazon.jobs search | optional `query`, `location`, `categories` (server-side `category[]` filter) |
+| `microsoft` | Microsoft careers search API | optional `query`, `location` — *adapter shipped but no config entry: the endpoint currently serves a mismatched `*.azureedge.net` cert and gates search behind a bearer token, so it can't be polled unauthenticated yet* |
+
+Every hunter raises on failure (network error, non-200, bad JSON), so a dead
+source is told apart from one with no matches and gets a ⚠️ alert after 3
+consecutive failures. Each source stays within a **≤ 4 request/run** budget
+with a 15s timeout.
 
 This script is built to run entirely on **GitHub Actions for free**, with zero infrastructure needed.
 
@@ -33,6 +50,46 @@ This script is built to run entirely on **GitHub Actions for free**, with zero i
 
 4. **Customize Config:**
    - Edit `config.yaml` to include your desired keywords, locations, ATS companies, and custom pages.
+   - Enterprise boards (Workday / Amazon / Microsoft) are configured under the
+     `ats_companies` list too. One example per new adapter type:
+
+     ```yaml
+     # Workday: discover tenant/wd_host/site from the company's
+     # *.myworkdayjobs.com URL. Location is filtered client-side on the
+     # posting's locationsText; include_multi_location turns on the "N Locations"
+     # inclusion rule (multi-location intern postings aren't silently dropped).
+     - name: NVIDIA
+       ats: workday
+       tenant: nvidia
+       wd_host: wd5
+       site: NVIDIAExternalCareerSite
+       include_multi_location: true  # optional; default false
+       # search: intern          # optional server-side searchText (default "intern")
+
+     # Amazon: one server-side filtered request against amazon.jobs.
+     # `categories` uses amazon.jobs' category[] param — strongly recommended,
+     # otherwise Amazon India floods the digest with finance/ops interns.
+     - name: Amazon
+       ats: amazon
+       query: intern             # optional (default "intern")
+       location: India           # optional (default "India")
+       categories:               # optional server-side category filter
+       - software-development
+       - machine-learning-science
+       - data-science
+
+     # Microsoft: adapter exists but is currently unconfigurable (see the
+     # supported-ATS table) — the search API needs a bearer token.
+     - name: Microsoft
+       ats: microsoft
+       query: intern
+       location: India
+     ```
+
+   > **Finding a Workday `site`:** it's the path segment after the tenant in the
+   > careers URL — e.g. `sprinklr.wd1.myworkdayjobs.com/careers` → `site: careers`,
+   > `citi.wd5.myworkdayjobs.com/.../2` → `site: "2"` (quote numeric sites so YAML
+   > keeps them strings). Verify with a live CXS POST before adding.
 
 5. **Run!**
    - The GitHub Action hunts ATS boards **hourly** (fast, no browser) and does a **full run including Playwright custom pages every 4 hours**. The Chromium browser is cached between runs to stay well within the free Actions minutes on private repos.

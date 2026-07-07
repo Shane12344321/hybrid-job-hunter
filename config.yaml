@@ -233,6 +233,61 @@ ats_companies:
 - name: Enterpret
   ats: greenhouse
   slug: enterpret  # India-heavy AI startup (Bengaluru)
+# -- Enterprise (Workday / custom APIs) --
+# All tenants/hosts/sites live-verified via a real CXS POST on 2026-07-07
+# (endpoint returned jobPostings). Location filtering is client-side on
+# locationsText; include_multi_location turns on the "N Locations" inclusion rule so
+# multi-location intern postings aren't silently dropped.
+- name: NVIDIA
+  ats: workday
+  tenant: nvidia
+  wd_host: wd5
+  site: NVIDIAExternalCareerSite
+  include_multi_location: true  # total=883, heavy 2026 intern program
+- name: Citi
+  ats: workday
+  tenant: citi
+  wd_host: wd5
+  site: "2"  # site is literally "2"; total=2000, global summer interns
+  include_multi_location: true
+- name: BlackRock
+  ats: workday
+  tenant: blackrock
+  wd_host: wd1
+  site: BlackRock_Professional  # total=134, India (Gurgaon/Mumbai) roles
+  include_multi_location: true
+- name: Adobe
+  ats: workday
+  tenant: adobe
+  wd_host: wd5
+  site: external_experienced  # 2026 AI/ML intern cohort (multi-location)
+  include_multi_location: true
+- name: Salesforce
+  ats: workday
+  tenant: salesforce
+  wd_host: wd12  # migrated off wd1; wd12 is the live host
+  site: External_Career_Site
+  include_multi_location: true
+- name: Sprinklr
+  ats: workday
+  tenant: sprinklr
+  wd_host: wd1
+  site: careers  # India-heavy (Gurgaon); "razorpay"-style short site works
+  include_multi_location: true
+- name: Fractal Analytics
+  ats: workday
+  tenant: fractal
+  wd_host: wd1
+  site: Careers  # India AI (Bengaluru), SR-prefixed requisition ids
+  include_multi_location: true
+- name: Amazon
+  ats: amazon
+  query: intern
+  location: India  # amazon.jobs JSON; loc_query narrows, client-side re-checks
+  categories:  # server-side category[] filter, live-verified 2026-07-07 — keeps finance/ops interns out of the digest
+  - software-development
+  - machine-learning-science
+  - data-science
 
 custom_pages:
 # - name: Google India Jobs
@@ -258,17 +313,14 @@ custom_pages:
 # - name: DE Shaw
 #   url: https://www.deshaw.com/careers
 #   keyword_filter: true
-# - name: Microsoft
-#   url: https://jobs.careers.microsoft.com/global/en/search?lc=India&l=en_us&pg=1&pgSz=20&disp=Advanced
-#   keyword_filter: true
-# - name: Amazon
-#   url: https://www.amazon.jobs/en/search?base_query=intern&loc_query=India
-#   keyword_filter: true
+# NOTE: Amazon and NVIDIA are now hunted via native API adapters above
+# (ats: amazon / ats: workday) — no Playwright scraping needed. Microsoft has
+# an ats: microsoft adapter too, but the search API now needs a bearer token,
+# so it isn't wired into config yet. Apple stays a Playwright candidate: its
+# jobs.apple.com search API is CSRF-gated and the /api/role/search path 404s
+# unauthenticated, so no native adapter ships for it.
 # - name: Apple
 #   url: https://jobs.apple.com/en-in/search?sort=relevance&search=intern&location=india-IND
-#   keyword_filter: true
-# - name: NVIDIA
-#   url: https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite?q=intern&locations=f2e609fe92974a55a05fc1cdc2852122
 #   keyword_filter: true
 # - name: Uber
 #   url: https://www.uber.com/us/en/careers/list/?query=intern&location=IND

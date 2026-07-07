@@ -257,6 +257,19 @@ class ATSHunter:
 
         return keyword_match and location_match
 
+    def title_matches(self, title, keywords=None):
+        """Keyword/exclude check on the title only, ignoring location. Used by
+        the Workday "N Locations" inclusion rule, where the location text is a
+        count ("3 Locations") that can't match a city — so a title-only pass
+        keeps India-eligible multi-location postings from being silently
+        dropped (plan §4.1)."""
+        if not title: return False
+        title_lower = title.lower()
+        if any(re.search(r'\b' + re.escape(k) + r'\b', title_lower) for k in self.exclude_keywords):
+            return False
+        keywords = self.keywords if keywords is None else keywords
+        return any(re.search(r'\b' + re.escape(k) + r'\b', title_lower) for k in keywords) if keywords else True
+
     # Hunters raise on failure (network error, non-200, bad JSON) so the
     # caller can tell a dead source apart from a source with no matches.
 
@@ -322,6 +335,115 @@ class ATSHunter:
                 job_id = str(job.get("Id", ""))
                 job_url = f"https://{host}/hcmUI/CandidateExperience/en/sites/{site_number}/job/{job_id}"
                 matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+        return matches
+
+    def hunt_workday(self, tenant, site, wd_host="wd5", search="intern",
+                     include_multi_location=False, keywords=None):
+        """Hunter for Workday CXS boards (NVIDIA, Citi, BlackRock, Adobe, …).
+        POSTs to the tenant's CXS jobs endpoint with server-side `searchText`
+        so one page is usually enough; paginates only up to the request cap.
+
+        Location filtering is client-side on `locationsText` (via
+        matches_criteria). We deliberately DON'T send Workday's location facet:
+        the India GUID is tenant-specific (NVIDIA 400s on the shared one), so a
+        hardcoded facet is brittle — searchText + matches_criteria is portable.
+        `include_multi_location` gates the "N Locations" inclusion rule below."""
+        base = f"https://{tenant}.{wd_host}.myworkdayjobs.com"
+        url = f"{base}/wday/cxs/{tenant}/{site}/jobs"
+        limit = 20
+        matches = []
+        # ≤ 4 requests/source: cap the pagination loop hard (plan §3).
+        for page in range(4):
+            body = {"appliedFacets": {}, "limit": limit, "offset": page * limit, "searchText": search}
+            res = requests.post(url, json=body, timeout=15,
+                                headers={**API_HEADERS, "Content-Type": "application/json", "Accept": "application/json"})
+            res.raise_for_status()
+            data = res.json()
+            postings = data.get("jobPostings", [])
+            for job in postings:
+                title = job.get("title", "")
+                location = job.get("locationsText", "")
+                # Multi-location postings collapse to "N Locations" — that text
+                # can't match a city, so matches_criteria would drop an
+                # India-eligible role. With include_multi_location set, include
+                # such a posting on a title match alone (one extra alert beats a
+                # silent miss — see plan §4.1). Otherwise honour the location filter.
+                is_multi = bool(re.match(r'^\d+\s+Locations$', location.strip()))
+                if is_multi and include_multi_location:
+                    if not self.title_matches(title, keywords):
+                        continue
+                elif not self.matches_criteria(title, location, keywords):
+                    continue
+                path = job.get("externalPath", "")
+                # Stable dedup key: trailing requisition id (e.g. JR1988855),
+                # falling back to the full path so IDs never come from position.
+                job_id = path.rsplit("_", 1)[-1] if "_" in path else path
+                job_url = f"{base}/en-US/{site}{path}"
+                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+            total = data.get("total", 0)
+            if (page + 1) * limit >= total or not postings:
+                break
+        return matches
+
+    def hunt_amazon(self, query="intern", location="India", categories=None, keywords=None):
+        """Hunter for amazon.jobs. One server-side filtered request is enough
+        (Amazon's board is ~50k jobs, so query/loc params are mandatory).
+        `loc_query` narrows server-side but still leaks nearby regions, so
+        matches_criteria re-checks location client-side. `categories` narrows
+        server-side via amazon.jobs' `category[]` param (live-verified:
+        software-development / machine-learning-science / data-science) — without
+        it Amazon India floods the digest with finance/ops interns."""
+        url = (f"https://www.amazon.jobs/en/search.json?base_query={query}"
+               f"&loc_query={location}&result_limit=100&offset=0")
+        for c in categories or []:
+            url += f"&category[]={c}"
+        # A browser-like UA keeps the JSON endpoint from 403-ing (plan §4.2).
+        res = requests.get(url, timeout=15, headers={
+            **API_HEADERS,
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        })
+        res.raise_for_status()
+        jobs = res.json().get("jobs", [])
+        matches = []
+        for job in jobs:
+            title = job.get("title", "")
+            location_text = job.get("normalized_location") or job.get("location", "")
+            if self.matches_criteria(title, location_text, keywords):
+                job_id = str(job.get("id_icims") or job.get("id", ""))
+                job_url = f"https://www.amazon.jobs{job.get('job_path', '')}"
+                matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
+        return matches
+
+    def hunt_microsoft(self, query="intern", location="India", keywords=None):
+        """Hunter for the Microsoft careers search API. Server-side `lc` filter
+        narrows to a country; matches_criteria re-checks title/location.
+        Paginates up to the request cap.
+
+        NOTE: as of the last verification the gcsservices host serves an
+        *.azureedge.net cert (hostname mismatch) and gates the search API
+        behind a bearer token, so no MS entry ships in config.yaml yet. The
+        adapter is kept ready for when the endpoint is reachable again — until
+        then Phase 2 failure tracking would flag it, which is why it's
+        unconfigured rather than special-cased."""
+        matches = []
+        for page in range(1, 5):  # pages 1-4, ≤ 4 requests (plan §3)
+            url = (f"https://gcsservices.careers.microsoft.com/search/api/v1/search"
+                   f"?q={query}&lc={location}&l=en_us&pg={page}&pgSz=20")
+            res = requests.get(url, timeout=15, headers={**API_HEADERS, "Accept": "application/json"})
+            res.raise_for_status()
+            result = res.json().get("operationResult", {}).get("result", {})
+            jobs = result.get("jobs", [])
+            for job in jobs:
+                title = job.get("title", "")
+                locs = job.get("properties", {}).get("locations") or []
+                location_text = ", ".join(locs) if isinstance(locs, list) else str(locs)
+                if self.matches_criteria(title, location_text, keywords):
+                    job_id = str(job.get("jobId", ""))
+                    job_url = f"https://jobs.careers.microsoft.com/global/en/job/{job_id}"
+                    matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
+            total = result.get("totalJobs", 0)
+            if page * 20 >= total or not jobs:
+                break
         return matches
 
 def page_text_failure(text):
@@ -507,6 +629,28 @@ def main():
                     keyword=comp.get("keyword", "intern"),
                     location_id=comp.get("location_id"),
                     host=comp.get("host", "jpmc.fa.oraclecloud.com"),
+                    keywords=kw_override
+                )
+            elif ats_type == "workday":
+                matches = ats_hunter.hunt_workday(
+                    tenant=comp["tenant"],
+                    site=comp["site"],
+                    wd_host=comp.get("wd_host", "wd5"),
+                    search=comp.get("search", "intern"),
+                    include_multi_location=comp.get("include_multi_location", False),
+                    keywords=kw_override
+                )
+            elif ats_type == "amazon":
+                matches = ats_hunter.hunt_amazon(
+                    query=comp.get("query", "intern"),
+                    location=comp.get("location", "India"),
+                    categories=comp.get("categories"),
+                    keywords=kw_override
+                )
+            elif ats_type == "microsoft":
+                matches = ats_hunter.hunt_microsoft(
+                    query=comp.get("query", "intern"),
+                    location=comp.get("location", "India"),
                     keywords=kw_override
                 )
             else:
