@@ -2,17 +2,28 @@ name: Hybrid Job Hunter
 
 on:
   schedule:
-    # Run every hour
+    # Hourly: ATS boards only — fast, no browser needed (~30s)
     - cron: '0 * * * *'
-    # Run at 12:00 AM IST (18:30 UTC)
-    - cron: '30 18 * * *'
-  workflow_dispatch: # Allow manual triggering
+    # Every 4 hours (offset to avoid colliding with the hourly run):
+    # full run including Playwright-rendered custom pages
+    - cron: '20 1,5,9,13,17,21 * * *'
+  workflow_dispatch: # Manual runs are always full runs
+
+# Never let two runs race on the state.json commit; queue instead of cancel
+# so an in-flight run finishes delivering its alerts.
+concurrency:
+  group: hunter-state
+  cancel-in-progress: false
 
 jobs:
   hunt:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
+    env:
+      # Hourly cron -> ATS only. The 4-hourly cron and manual runs -> full.
+      FULL_RUN: ${{ github.event.schedule != '0 * * * *' }}
 
     steps:
     - name: Checkout Repository
@@ -28,18 +39,43 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        playwright install --with-deps chromium
+
+    - name: Cache Playwright browser
+      if: env.FULL_RUN == 'true'
+      id: pw-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+    - name: Install Playwright browser (cache miss)
+      if: env.FULL_RUN == 'true' && steps.pw-cache.outputs.cache-hit != 'true'
+      run: playwright install --with-deps chromium
+
+    - name: Install Playwright OS deps (cache hit)
+      if: env.FULL_RUN == 'true' && steps.pw-cache.outputs.cache-hit == 'true'
+      run: playwright install-deps chromium
 
     - name: Run Hybrid Hunter
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: python hybrid_hunter.py
+      run: |
+        if [ "$FULL_RUN" = "true" ]; then
+          python hybrid_hunter.py
+        else
+          python hybrid_hunter.py --ats-only
+        fi
 
     - name: Commit state changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add state.json
-        # Only commit and push if state.json changed
-        git diff-index --quiet HEAD || (git commit -m "chore: update job hunter state" && git push)
+        # Only commit and push if state.json changed; rebase first in case
+        # anything landed on the branch while this run was in flight.
+        if ! git diff-index --quiet HEAD; then
+          git commit -m "chore: update job hunter state"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push
+        fi

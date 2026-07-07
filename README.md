@@ -35,8 +35,8 @@ This script is built to run entirely on **GitHub Actions for free**, with zero i
    - Edit `config.yaml` to include your desired keywords, locations, ATS companies, and custom pages.
 
 5. **Run!**
-   - The GitHub Action is scheduled to run every 6 hours automatically.
-   - Go to the Actions tab in GitHub and click "Run workflow" to test it manually.
+   - The GitHub Action hunts ATS boards **hourly** (fast, no browser) and does a **full run including Playwright custom pages every 4 hours**. The Chromium browser is cached between runs to stay well within the free Actions minutes on private repos.
+   - Go to the Actions tab in GitHub and click "Run workflow" to test it manually (manual runs are always full runs).
 
 ## Local Testing
 
@@ -49,3 +49,14 @@ export TELEGRAM_TOKEN="your_token"
 export TELEGRAM_CHAT_ID="your_chat_id"
 python hybrid_hunter.py
 ```
+
+Useful flags:
+
+- `python hybrid_hunter.py --test` — dry run: shows matches per source, no state changes, no notifications.
+- `python hybrid_hunter.py --seed` — baseline mode: marks all currently open matching jobs and page hashes as "seen" without notifying. Run this once after adding new companies to `config.yaml` to avoid an alert flood on the first live run.
+- `python hybrid_hunter.py --ats-only` / `--pages-only` — hunt only ATS boards (no browser needed) or only Playwright custom pages. The scheduled workflow uses `--ats-only` for the hourly runs.
+- `python hybrid_hunter.py --heartbeat` — send a read-only status report (sources, finds in last 24h/7d, failing sources). Does not hunt.
+
+Delivery guarantees: matches are only marked as seen after the Telegram message is delivered (or queued). If Telegram is down or rejects a message, the digest is stored in `state.json` under `_pending` and retried on the next run (up to 5 attempts).
+
+Failure visibility: a source that fails 3 runs in a row (API error, wrong slug, bot-blocked or empty page) triggers a one-time ⚠️ Telegram warning, and a ✅ notice when it recovers. Custom pages returning empty or suspiciously short content (<200 chars — likely CAPTCHA/block) count as failures, not content changes. The daily heartbeat reports real stats: new roles in the last 24h/7d, jobs tracked, pending alerts, and any failing sources. On GitHub Actions, each run writes a per-source result table to the job summary.
