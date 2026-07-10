@@ -167,7 +167,13 @@
     ],
     "hash": ""
   },
-  "_failures": {},
+  "_failures": {
+    "BlackRock": {
+      "count": 1,
+      "alerted": false,
+      "reason": "HTTPSConnectionPool(host='blackrock.wd1.myworkdayjobs.com', port=443): Read timed out. (read timeout=15)"
+    }
+  },
   "_stats": {
     "finds": [
       [
