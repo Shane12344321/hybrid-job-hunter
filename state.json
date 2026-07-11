@@ -167,33 +167,7 @@
     ],
     "hash": ""
   },
-  "_failures": {
-    "Citi": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "BlackRock": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "Adobe": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "Sprinklr": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "Fractal Analytics": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    }
-  },
+  "_failures": {},
   "_stats": {
     "finds": [
       [
