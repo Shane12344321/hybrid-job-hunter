@@ -167,7 +167,13 @@
     ],
     "hash": ""
   },
-  "_failures": {},
+  "_failures": {
+    "Airbnb": {
+      "count": 1,
+      "alerted": false,
+      "reason": "HTTPSConnectionPool(host='boards-api.greenhouse.io', port=443): Read timed out. (read timeout=10)"
+    }
+  },
   "_stats": {
     "finds": [
       [
