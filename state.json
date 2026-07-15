@@ -96,7 +96,8 @@
     "jobs": [
       "JR2014186",
       "JR2018244",
-      "JR2018628"
+      "JR2018628",
+      "JR2020368"
     ],
     "hash": "67dadcb012831a0eee8e11d5b12f20e3"
   },
@@ -167,23 +168,7 @@
     ],
     "hash": ""
   },
-  "_failures": {
-    "Tower Research": {
-      "count": 1,
-      "alerted": false,
-      "reason": "HTTPSConnectionPool(host='boards-api.greenhouse.io', port=443): Read timed out. (read timeout=10)"
-    },
-    "MindTickle": {
-      "count": 1,
-      "alerted": false,
-      "reason": "HTTPSConnectionPool(host='api.lever.co', port=443): Read timed out. (read timeout=10)"
-    },
-    "Dream Sports": {
-      "count": 1,
-      "alerted": false,
-      "reason": "HTTPSConnectionPool(host='api.lever.co', port=443): Read timed out. (read timeout=10)"
-    }
-  },
+  "_failures": {},
   "_stats": {
     "finds": [
       [
@@ -205,6 +190,10 @@
       [
         "2026-07-14T10:52:15Z",
         2
+      ],
+      [
+        "2026-07-15T15:40:20Z",
+        1
       ]
     ]
   },
