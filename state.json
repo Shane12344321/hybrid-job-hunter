@@ -168,10 +168,20 @@
     "hash": ""
   },
   "_failures": {
-    "Squarepoint Capital": {
+    "Tower Research": {
       "count": 1,
       "alerted": false,
       "reason": "HTTPSConnectionPool(host='boards-api.greenhouse.io', port=443): Read timed out. (read timeout=10)"
+    },
+    "MindTickle": {
+      "count": 1,
+      "alerted": false,
+      "reason": "HTTPSConnectionPool(host='api.lever.co', port=443): Read timed out. (read timeout=10)"
+    },
+    "Dream Sports": {
+      "count": 1,
+      "alerted": false,
+      "reason": "HTTPSConnectionPool(host='api.lever.co', port=443): Read timed out. (read timeout=10)"
     }
   },
   "_stats": {
