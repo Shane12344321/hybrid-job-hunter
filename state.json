@@ -170,8 +170,8 @@
   },
   "_failures": {
     "Dream Sports": {
-      "count": 2,
-      "alerted": false,
+      "count": 3,
+      "alerted": true,
       "reason": "404 Client Error: Not Found for url: https://api.lever.co/v0/postings/dreamsports?mode=json"
     }
   },
