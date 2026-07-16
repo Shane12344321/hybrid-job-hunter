@@ -173,6 +173,26 @@
       "count": 3,
       "alerted": true,
       "reason": "404 Client Error: Not Found for url: https://api.lever.co/v0/postings/dreamsports?mode=json"
+    },
+    "xAI": {
+      "count": 1,
+      "alerted": false,
+      "reason": "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+    },
+    "LinkedIn": {
+      "count": 1,
+      "alerted": false,
+      "reason": "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+    },
+    "Abnormal Security": {
+      "count": 1,
+      "alerted": false,
+      "reason": "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
+    },
+    "InMobi": {
+      "count": 1,
+      "alerted": false,
+      "reason": "('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))"
     }
   },
   "_stats": {
