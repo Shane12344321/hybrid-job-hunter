@@ -173,6 +173,11 @@
       "count": 3,
       "alerted": true,
       "reason": "404 Client Error: Not Found for url: https://api.lever.co/v0/postings/dreamsports?mode=json"
+    },
+    "Citi": {
+      "count": 1,
+      "alerted": false,
+      "reason": "520 Server Error: <none> for url: https://citi.wd5.myworkdayjobs.com/wday/cxs/citi/2/jobs"
     }
   },
   "_stats": {
