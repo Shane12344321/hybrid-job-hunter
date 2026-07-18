@@ -174,39 +174,19 @@
       "alerted": true,
       "reason": "404 Client Error: Not Found for url: https://api.lever.co/v0/postings/dreamsports?mode=json"
     },
-    "Salesforce": {
+    "NVIDIA": {
       "count": 3,
       "alerted": true,
       "reason": "Expecting value: line 1 column 1 (char 0)"
     },
-    "NVIDIA": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
     "Citi": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "BlackRock": {
-      "count": 2,
-      "alerted": false,
+      "count": 3,
+      "alerted": true,
       "reason": "Expecting value: line 1 column 1 (char 0)"
     },
     "Adobe": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "Sprinklr": {
-      "count": 2,
-      "alerted": false,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "Fractal Analytics": {
-      "count": 2,
-      "alerted": false,
+      "count": 3,
+      "alerted": true,
       "reason": "Expecting value: line 1 column 1 (char 0)"
     }
   },
