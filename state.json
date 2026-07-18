@@ -173,21 +173,6 @@
       "count": 3,
       "alerted": true,
       "reason": "404 Client Error: Not Found for url: https://api.lever.co/v0/postings/dreamsports?mode=json"
-    },
-    "NVIDIA": {
-      "count": 3,
-      "alerted": true,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "Citi": {
-      "count": 3,
-      "alerted": true,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
-    },
-    "Adobe": {
-      "count": 3,
-      "alerted": true,
-      "reason": "Expecting value: line 1 column 1 (char 0)"
     }
   },
   "_stats": {
