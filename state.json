@@ -176,7 +176,7 @@
       "alerted": true,
       "reason": "404 Client Error: Not Found for url: https://api.lever.co/v0/postings/dreamsports?mode=json"
     },
-    "Rubrik": {
+    "MongoDB": {
       "count": 1,
       "alerted": false,
       "reason": "HTTPSConnectionPool(host='boards-api.greenhouse.io', port=443): Read timed out. (read timeout=10)"
