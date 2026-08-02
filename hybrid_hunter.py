@@ -882,11 +882,16 @@ class ATSHunter:
                 continue
             seen_ids[job_id] = signature
             location_text = ", ".join(value for value in locations if value)
-            category_match = not wanted_categories or category.casefold() in wanted_categories
             location_match = not location or location.casefold() in location_text.casefold()
-            title_match = (self.title_matches(title, keywords=[])
-                           if wanted_categories else self.title_matches(title, keywords))
-            if category_match and location_match and title_match:
+            # `categories` is a shortcut, not a gate: a listing in a wanted
+            # category counts even if its title carries no keyword, but a
+            # keyword title still counts on its own. Requiring both meant that
+            # when Atlassian dropped its Interns/Graduates categories — the
+            # feed carried neither on 2026-08-02 — the source could never match
+            # anything and still reported a healthy zero.
+            in_category = bool(wanted_categories) and category.casefold() in wanted_categories
+            title_match = self.title_matches(title, keywords)
+            if location_match and (in_category or title_match):
                 matches.append({"id": job_id, "title": title, "location": location_text,
                                 "url": job_url})
         return matches

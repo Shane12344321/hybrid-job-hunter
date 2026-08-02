@@ -84,6 +84,40 @@ class TestAtlassian(unittest.TestCase):
                 location="India", categories=["Interns", "Graduates"])
         self.assertEqual([job["id"] for job in jobs], ["242:25001"])
 
+    def test_keyword_title_matches_even_outside_the_wanted_categories(self):
+        # Atlassian's feed carried no Interns/Graduates categories at all on
+        # 2026-08-02 (Sales, Engineering, ...). Gating on category meant the
+        # source could never match while still reporting a healthy zero.
+        payload = [
+            {"portalId": 242, "id": 1, "title": "Summer Intern, Engineering",
+             "locations": ["India - Bengaluru"], "category": "Engineering",
+             "applyUrl": "https://example.test/1"},
+            {"portalId": 242, "id": 2, "title": "Principal Engineer",
+             "locations": ["India - Bengaluru"], "category": "Engineering",
+             "applyUrl": "https://example.test/2"},
+        ]
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            jobs = hunter().hunt_atlassian(
+                location="India", categories=["Interns", "Graduates"])
+        self.assertEqual([job["id"] for job in jobs], ["242:1"])
+
+    def test_wanted_category_still_matches_a_keywordless_title(self):
+        payload = [{"portalId": 242, "id": 3, "title": "Software Engineer",
+                    "locations": ["India - Bengaluru"], "category": "Graduates",
+                    "applyUrl": "https://example.test/3"}]
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            jobs = hunter().hunt_atlassian(
+                location="India", categories=["Interns", "Graduates"])
+        self.assertEqual([job["id"] for job in jobs], ["242:3"])
+
+    def test_location_still_gates_both_paths(self):
+        payload = [{"portalId": 17, "id": 4, "title": "Summer Intern",
+                    "locations": ["United States - New York"], "category": "Interns",
+                    "applyUrl": "https://example.test/4"}]
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            self.assertEqual(hunter().hunt_atlassian(
+                location="India", categories=["Interns", "Graduates"]), [])
+
     def test_malformed_listing_fails_instead_of_zero(self):
         with mock.patch.object(hh.requests, "get", return_value=response([{"id": 1}])):
             with self.assertRaisesRegex(ValueError, "missing"):

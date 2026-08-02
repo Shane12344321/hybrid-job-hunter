@@ -96,7 +96,14 @@ locally unless explicitly asked.
   a partial read look complete, which is the silent miss this design forbids.
 - **Title filtering** is word-boundary and case-insensitive, against
   `keywords` minus `exclude_keywords`. Per-company `keywords:` overrides the
-  global list.
+  global list. Word boundaries mean every surface form needs its own entry:
+  `new grad` does not match `New Graduate`, nor `apprentice` `Apprenticeship`.
+  Before adding a term, measure it — diff old against new matching over the
+  live boards and check the noise, don't reason about it.
+- **Category filters are shortcuts, never gates.** A source that requires a
+  category to match can go permanently silent when the ATS renames or drops
+  it, while still reporting a healthy zero (Atlassian did exactly this). Match
+  on `category OR title keyword`, with location still gating both.
 - **Location filtering** (`location_matches`) is word-boundary too — a
   substring test let `india` match `Indiana`/`Indianapolis`. `remote` has to
   stay in `locations` to catch remote India roles, so `exclude_locations`

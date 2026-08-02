@@ -3,6 +3,14 @@ keywords:
 - internship
 - summer
 - new grad
+# Word-boundary matching means each surface form needs its own entry:
+# "new grad" does not match "New Graduate", nor "apprentice" "Apprenticeship".
+# Google's India early-career programme is named Apprenticeship, so without
+# these its roles were fetched and then silently dropped. Verified against
+# 17,089 live postings on 2026-08-02: these add no noise.
+- new graduate
+- apprentice
+- apprenticeship
 
 # Titles matching any of these are REJECTED even when a keyword matches.
 # Word-boundary matching, case-insensitive. Edit freely.
