@@ -55,7 +55,7 @@ Pattern (see the Atlassian entry in config.yaml):
 ```
 
 **(c) A program/landing page (no role cards — e.g. "applications closed")** —
-add a hash-based program monitor. Pattern (see "Anthropic Codex Campus" in
+add a hash-based program monitor. Pattern (see "Anthropic Claude Campus" in
 config.yaml):
 
 ```yaml
