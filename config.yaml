@@ -305,13 +305,23 @@ ats_companies:
   tenant: nvidia
   wd_host: wd5
   site: NVIDIAExternalCareerSite
-  include_multi_location: true  # total=883, heavy 2026 intern program
+  include_multi_location: true
+  # Default "intern" fuzzy-matches internal/international here: total=901, far
+  # past any page budget. "internship" returns 23 and, verified 2026-08-02
+  # against a full 901-posting read, finds exactly the same India roles.
+  search: internship
+  max_pages: 4
 - name: Citi
   ats: workday
   tenant: citi
   wd_host: wd5
-  site: "2"  # site is literally "2"; total=2000, global summer interns
+  site: "2"  # site is literally "2"
   include_multi_location: true
+  # Default "intern" returns total=2000 — Workday's response cap, so the true
+  # set is unreadable at any page budget. "internship" returns 51 and, verified
+  # 2026-08-02 against a full 2000-posting read, misses no India role.
+  search: internship
+  max_pages: 4
 - name: BlackRock
   ats: workday
   tenant: blackrock
@@ -327,12 +337,18 @@ ats_companies:
   wd_host: wd5
   site: external_experienced  # 2026 AI/ML intern cohort (multi-location)
   include_multi_location: true
+  # "intern" returns 301 (internal/international noise); "internship" returns 4
+  # and, verified 2026-08-02 against a full 301-posting read, finds the same roles.
+  search: internship
 - name: Salesforce
   ats: workday
   tenant: salesforce
   wd_host: wd12  # migrated off wd1; wd12 is the live host
   site: External_Career_Site
   include_multi_location: true
+  # "intern" returns 739; "internship" returns 34 and, verified 2026-08-02
+  # against a full 739-posting read, misses no role.
+  search: internship
 - name: Sprinklr
   ats: workday
   tenant: sprinklr
@@ -496,6 +512,9 @@ ats_companies:
   tenant: crowdstrike
   wd_host: wd5
   site: crowdstrikecareers
+  # "intern" returns 259; "internship" returns 2 and, verified 2026-08-02
+  # against a full 259-posting read, misses no role.
+  search: internship
 # Official public careers endpoint verified 2026-07-23.
 - name: Micron
   ats: eightfold

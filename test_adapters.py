@@ -321,6 +321,32 @@ class TestWorkday(unittest.TestCase):
                     "blackrock", "S", "wd1", include_multi_location=True, max_pages=5)
         self.assertEqual(post.call_count, 5)
 
+    def test_later_pages_reporting_total_zero_cannot_shorten_the_read(self):
+        # NVIDIA and Citi return the real total only on the first page and 0 on
+        # every offset>0 request. Trusting the later value made the truncation
+        # guard compare against 0, so a 40-of-901 read looked complete —
+        # a silent miss, the exact failure this adapter exists to prevent.
+        pages = [_resp(200, {"total": 901 if page == 0 else 0, "jobPostings": [
+            {"title": "Intern", "locationsText": "India, Pune",
+             "externalPath": f"/job/x/Intern_JR{page * 20 + i}"} for i in range(20)]})
+            for page in range(4)]
+        post = mock.Mock(side_effect=pages)
+        with mock.patch.object(hh.requests, "post", post):
+            with self.assertRaisesRegex(RuntimeError, r"truncated \(80/901\)"):
+                self._hunter().hunt_workday("nvidia", "S", "wd5",
+                                            include_multi_location=True)
+        self.assertEqual(post.call_count, 4)  # kept paging instead of stopping at 2
+
+    def test_first_page_total_is_honoured_when_the_read_completes(self):
+        pages = [_resp(200, {"total": 30 if page == 0 else 0, "jobPostings": [
+            {"title": "Intern", "locationsText": "India, Pune",
+             "externalPath": f"/job/x/Intern_JR{page * 20 + i}"}
+            for i in range(20 if page == 0 else 10)]}) for page in range(2)]
+        with mock.patch.object(hh.requests, "post", mock.Mock(side_effect=pages)):
+            m = self._hunter().hunt_workday("x", "S", "wd5",
+                                            include_multi_location=True)
+        self.assertEqual(len(m), 30)  # 30/30 read in full, no spurious raise
+
     def test_max_pages_is_bounds_checked(self):
         h = self._hunter()
         for bad in (0, 13, True, "5", 2.0):

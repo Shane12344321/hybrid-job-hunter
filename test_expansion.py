@@ -17,6 +17,11 @@ import catalog_report
 import probe
 
 
+def _response(status, payload):
+    """Minimal stand-in for a requests.Response."""
+    return mock.Mock(status_code=status, json=mock.Mock(return_value=payload))
+
+
 class TestCandidateLedger(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -148,6 +153,31 @@ class TestCandidateLedger(unittest.TestCase):
         self.assertEqual(count, 12)
         self.assertEqual(entry["ats"], "smartrecruiters")
         self.assertEqual(entry["company_id"], "Example")
+
+    def test_check_smartrecruiters_parses_a_200_response(self):
+        # The URL test above mocks check_smartrecruiters, so it stayed green
+        # while the real function had no success path at all and returned None
+        # for every 200 — breaking `add_source.py --ats smartrecruiters` and
+        # every SmartRecruiters URL probe. Exercise the real body.
+        payload = {"totalFound": 12, "content": [{"id": "abc"}]}
+        with mock.patch.object(probe.requests, "get",
+                               return_value=_response(200, payload)):
+            self.assertEqual(probe.check_smartrecruiters("Example"), 12)
+
+    def test_check_smartrecruiters_rejects_malformed_and_non_200(self):
+        with mock.patch.object(probe.requests, "get",
+                               return_value=_response(404, {})):
+            self.assertIsNone(probe.check_smartrecruiters("Example"))
+        for bad in ({"content": []}, {"totalFound": 3}, {"totalFound": "x", "content": []}):
+            with mock.patch.object(probe.requests, "get",
+                                   return_value=_response(200, bad)):
+                self.assertIsNone(probe.check_smartrecruiters("Example"))
+
+    def test_check_workable_is_unaffected_by_the_shared_parse_block(self):
+        payload = {"name": "Example", "jobs": [{"id": 1}, {"id": 2}]}
+        with mock.patch.object(probe.requests, "get",
+                               return_value=_response(200, payload)):
+            self.assertEqual(probe.check_workable("example"), 2)
 
     def test_workable_url_is_recognized_as_supported(self):
         with mock.patch.object(probe, "check_workable", return_value=7):

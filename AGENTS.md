@@ -84,6 +84,16 @@ locally unless explicitly asked.
   page. `max_pages:` raises the cap per source where the ATS forces it —
   Workday hard-caps `limit` at 20 server-side, so a wide `searchText` needs
   more pages to be read in full (ceiling 12; every other adapter stays at 4).
+- **Workday `search:` must be narrow.** The default `intern` fuzzy-matches
+  `internal`/`international`, inflating totals past any budget (NVIDIA 901,
+  Citi 2000 — and 2000 is Workday's response cap, so that set is unreadable at
+  any `max_pages`). Prefer `search: internship`, which Workday still stems onto
+  `Intern` titles. Before narrowing a source, read its full `intern` set once
+  and diff the India-relevant matches, then record the date in a comment —
+  a narrower term must never drop a role.
+- **Trust Workday's `total` from the first page only.** Some tenants report
+  `total=0` on every `offset>0` request; letting a later page overwrite it made
+  a partial read look complete, which is the silent miss this design forbids.
 - **Title filtering** is word-boundary and case-insensitive, against
   `keywords` minus `exclude_keywords`. Per-company `keywords:` overrides the
   global list.

@@ -620,6 +620,15 @@ class ATSHunter:
         limit = 25
         requests_used = 0
         for search_term in search_terms:
+            if requests_used >= max_pages:
+                # An earlier query used up the shared budget, so this one never
+                # ran. Reporting it as "truncated (0/None)" would both blame a
+                # query that made no request and throw away the matches the
+                # earlier queries already found.
+                raise RuntimeError(
+                    f"Oracle HCM exhausted its {max_pages}-request budget before "
+                    f"query '{search_term}' ran; narrow the queries or raise "
+                    f"max_pages ({len(matches)} match(es) found before this point)")
             fetched = 0
             total = None
             page = 0
@@ -713,7 +722,14 @@ class ATSHunter:
             if (not isinstance(data, dict) or "total" not in data
                     or not isinstance(data.get("jobPostings"), list)):
                 raise ValueError("Workday response missing total/jobPostings[]")
-            total = int(data["total"])
+            # Trust `total` from the first page only. Some tenants (NVIDIA,
+            # Citi) report total=0 on every offset>0 request, and overwriting
+            # here made the truncation guard below compare against 0 — so a
+            # partial read of a 901-posting board looked like a complete one.
+            # A shrinking total must never shorten the read.
+            page_total = int(data["total"])
+            if total is None:
+                total = page_total
             postings = data["jobPostings"]
             fetched += len(postings)
             for job in postings:

@@ -157,6 +157,26 @@ class TestOracle(unittest.TestCase):
         self.assertIn("location=India", get.call_args_list[0].args[0])
         self.assertIn("offset=25", get.call_args_list[1].args[0])
 
+    def test_query_that_never_ran_is_not_reported_as_truncated(self):
+        # The 4-request budget is shared across queries. When an earlier query
+        # consumes it, the next one makes no request at all — it must not be
+        # blamed for "truncated (0/None)".
+        pages = [response(self.payload(100, [
+            {"Id": str(page * 25 + i), "Title": "Software Intern",
+             "PrimaryLocation": "Bengaluru, India"} for i in range(25)]))
+            for page in range(4)]
+        get = mock.Mock(side_effect=pages)
+        with mock.patch.object(hh.requests, "get", get):
+            with self.assertRaises(RuntimeError) as caught:
+                hunter().hunt_oracle_hcm(
+                    "UberCareers", location="India",
+                    queries=["internship", "summer analyst", "graduate"])
+        message = str(caught.exception)
+        self.assertIn("exhausted its 4-request budget", message)
+        self.assertIn("summer analyst", message)   # names the query that was skipped
+        self.assertNotIn("0/None", message)        # never blames it for truncation
+        self.assertEqual(get.call_count, 4)        # budget still respected
+
     def test_truncation_fails(self):
         pages = []
         for page in range(4):

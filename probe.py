@@ -132,6 +132,14 @@ def check_smartrecruiters(company_id, query=None):
         timeout=TIMEOUT, headers=HEADERS)
     if res.status_code != 200:
         return None
+    payload = _json_or_none(res)
+    if (not isinstance(payload, dict) or "totalFound" not in payload
+            or not isinstance(payload.get("content"), list)):
+        return None
+    try:
+        return int(payload["totalFound"])
+    except (TypeError, ValueError):
+        return None
 
 
 def check_workable(account):
