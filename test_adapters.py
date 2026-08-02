@@ -419,6 +419,28 @@ class TestAmazon(unittest.TestCase):
             m = h.hunt_amazon()
         self.assertEqual(m[0]["id"], "xyz-9")
 
+    def test_location_is_filtered_by_country_code_not_loc_query(self):
+        # amazon.jobs silently ignores loc_query (loc_query=Germany returns
+        # Italy/Poland/Mexico/USA), so the request has to carry the country
+        # facet or the truncation guard ends up measuring Amazon's *global*
+        # intern count instead of India's.
+        get = mock.Mock(return_value=_resp(200, {"hits": 0, "jobs": []}))
+        with mock.patch.object(hh.requests, "get", get):
+            self._hunter().hunt_amazon(query="intern")
+        url = get.call_args.args[0]
+        self.assertIn("normalized_country_code[]=IND", url)
+        self.assertNotIn("loc_query", url)
+
+    def test_country_code_is_configurable_and_omittable(self):
+        get = mock.Mock(return_value=_resp(200, {"hits": 0, "jobs": []}))
+        with mock.patch.object(hh.requests, "get", get):
+            self._hunter().hunt_amazon(country_code="USA")
+        self.assertIn("normalized_country_code[]=USA", get.call_args.args[0])
+        get = mock.Mock(return_value=_resp(200, {"hits": 0, "jobs": []}))
+        with mock.patch.object(hh.requests, "get", get):
+            self._hunter().hunt_amazon(country_code=None)
+        self.assertNotIn("normalized_country_code", get.call_args.args[0])
+
     def test_categories_appended_to_url(self):
         h = self._hunter()
         get = mock.Mock(return_value=_resp(200, {"hits": 0, "jobs": []}))

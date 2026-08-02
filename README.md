@@ -15,7 +15,7 @@ A hybrid job hunting automation script that combines the best of both worlds:
 | `workable` | Workable public careers API | `account` |
 | `oracle_hcm` | Oracle HCM Cloud (J.P. Morgan, Uber) | `host`, `site_number`, `keyword` or `queries`, optional `location`/`location_id`/`max_pages` (1–4 shared requests) |
 | `workday` | Workday CXS boards (NVIDIA, Citi, BlackRock, Adobe, Salesforce, Sprinklr, Fractal, …) | `tenant`, `wd_host`, `site`, optional `search`/`include_multi_location`/`max_pages` (1–12; Workday caps page size at 20, so wide `search` terms need more pages) |
-| `amazon` | amazon.jobs search | optional `query`, `location`, `categories` (server-side `category[]` filter) |
+| `amazon` | amazon.jobs search | optional `query`, `categories` (server-side `category[]` filter), `country_code` (default `IND`; `loc_query` is ignored by amazon.jobs so this is the real location filter) |
 | `atlassian` | Atlassian public careers listings feed | optional `location`, `categories` |
 | `eightfold` | Public Eightfold/PCSX boards (Microsoft, Qualcomm) | `base_url`, `domain`, optional `query`, `location`, `seniority` |
 | `microsoft` | Compatibility alias for Microsoft's Eightfold endpoint | optional `query`, `location` |

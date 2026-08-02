@@ -352,6 +352,7 @@ class ATSHunter:
         self.keywords = [k.lower() for k in config.get("keywords", [])]
         self.exclude_keywords = [k.lower() for k in config.get("exclude_keywords") or []]
         self.locations = [l.lower() for l in config.get("locations", [])]
+        self.exclude_locations = [l.lower() for l in config.get("exclude_locations") or []]
         self.request_count = 0
 
     def reset_request_count(self):
@@ -377,16 +378,30 @@ class ATSHunter:
         Titles hitting any exclude_keyword are rejected regardless."""
         if not title: return False
         title_lower = self._title_for_matching(title)
-        location_lower = location.lower() if location else ""
 
         if any(re.search(r'\b' + re.escape(k) + r'\b', title_lower) for k in self.exclude_keywords):
             return False
 
         keywords = self.keywords if keywords is None else keywords
         keyword_match = any(re.search(r'\b' + re.escape(k) + r'\b', title_lower) for k in keywords) if keywords else True
-        location_match = any(l in location_lower for l in self.locations) if self.locations else True
+        return keyword_match and self.location_matches(location)
 
-        return keyword_match and location_match
+    def location_matches(self, location):
+        """Word-boundary location check, minus any `exclude_locations` hit.
+
+        Word boundaries matter because a bare substring test lets "india" match
+        "Indiana"/"Indianapolis". `exclude_locations` exists because "remote" has
+        to stay in `locations` to catch remote India roles, but on its own it
+        also admits "Remote - USA"; listing the foreign markers is the only way
+        to keep one without the other."""
+        location_lower = location.lower() if location else ""
+        if any(re.search(r'\b' + re.escape(x) + r'\b', location_lower)
+               for x in self.exclude_locations):
+            return False
+        if not self.locations:
+            return True
+        return any(re.search(r'\b' + re.escape(l) + r'\b', location_lower)
+                   for l in self.locations)
 
     def title_matches(self, title, keywords=None):
         """Keyword/exclude check on the title only, ignoring location. Used by
@@ -777,16 +792,25 @@ class ATSHunter:
             raise RuntimeError(f"Workday results truncated ({fetched}/{total})")
         return matches
 
-    def hunt_amazon(self, query="intern", location="India", categories=None, keywords=None):
+    def hunt_amazon(self, query="intern", location="India", categories=None,
+                    country_code="IND", keywords=None):
         """Hunter for amazon.jobs. One server-side filtered request is enough
         (Amazon's board is ~50k jobs, so query/loc params are mandatory).
-        `loc_query` narrows server-side but still leaks nearby regions, so
-        matches_criteria re-checks location client-side. `categories` narrows
-        server-side via amazon.jobs' `category[]` param (live-verified:
-        software-development / machine-learning-science / data-science) — without
-        it Amazon India floods the digest with finance/ops interns."""
+
+        Location is filtered with `normalized_country_code[]`. The obvious
+        `loc_query` is silently ignored by amazon.jobs — verified 2026-08-02,
+        `loc_query=Germany` returns Italy/Poland/Mexico/USA — so relying on it
+        meant fetching a globally-ranked page and hoping India survived the
+        client-side check, which also put the truncation guard at the mercy of
+        Amazon's *global* intern count. matches_criteria still re-checks
+        client-side as defence in depth. `categories` narrows server-side via
+        amazon.jobs' `category[]` param (live-verified: software-development /
+        machine-learning-science / data-science) — without it Amazon India
+        floods the digest with finance/ops interns."""
         url = (f"https://www.amazon.jobs/en/search.json?base_query={query}"
-               f"&loc_query={location}&result_limit=100&offset=0")
+               f"&result_limit=100&offset=0")
+        if country_code:
+            url += f"&normalized_country_code[]={country_code}"
         for c in categories or []:
             url += f"&category[]={c}"
         # A browser-like UA keeps the JSON endpoint from 403-ing (plan §4.2).
@@ -1180,6 +1204,7 @@ class CustomWebHunter:
     def __init__(self, config):
         self.keywords = [k.lower() for k in config.get("keywords", [])]
         self.locations = [l.lower() for l in config.get("locations", [])]
+        self.exclude_locations = [l.lower() for l in config.get("exclude_locations") or []]
         self.criteria = ATSHunter(config)
         self._playwright = None
         self._browser = None
@@ -1509,7 +1534,7 @@ def validate_config(config):
     problems = []
     if not isinstance(config, dict):
         return ["config.yaml top level must be a mapping"]
-    for key in ("keywords", "exclude_keywords", "locations"):
+    for key in ("keywords", "exclude_keywords", "locations", "exclude_locations"):
         value = config.get(key, [])
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
             problems.append(f"{key} must be a list of strings")
@@ -1896,6 +1921,7 @@ def main():
                     query=comp.get("query", "intern"),
                     location=comp.get("location", "India"),
                     categories=comp.get("categories"),
+                    country_code=comp.get("country_code", "IND"),
                     keywords=kw_override
                 )
             elif ats_type == "atlassian":

@@ -29,6 +29,27 @@ locations:
 - chennai
 - remote
 
+# "remote" above has to stay so remote India roles are caught, but on its own it
+# also admits "Remote - USA". Anything naming one of these is dropped even if it
+# says remote. Matched on word boundaries, so "us" won't hit "Uttar Pradesh".
+exclude_locations:
+- usa
+- u.s.
+- united states
+- canada
+- emea
+- uk
+- united kingdom
+- ireland
+- germany
+- poland
+- mexico
+- brazil
+- singapore
+- australia
+- japan
+- china
+
 telegram:
   # Do not put actual tokens here; use environment variables or GitHub secrets
   token: ${TELEGRAM_TOKEN}

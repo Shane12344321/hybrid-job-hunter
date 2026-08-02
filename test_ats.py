@@ -60,5 +60,47 @@ class TestBasicATSAdapters(unittest.TestCase):
                 self.hunter.hunt_greenhouse("example")
 
 
+class TestLocationMatching(unittest.TestCase):
+    def hunter(self, **over):
+        cfg = {"keywords": ["intern"], "exclude_keywords": [],
+               "locations": ["india", "bengaluru", "delhi", "remote"],
+               "exclude_locations": ["usa", "united states", "emea"]}
+        cfg.update(over)
+        return hh.ATSHunter(cfg)
+
+    def test_india_does_not_match_indiana(self):
+        # A bare substring test let "india" match Indiana/Indianapolis, which
+        # are real US tech hubs.
+        h = self.hunter()
+        self.assertFalse(h.location_matches("Indianapolis, Indiana, USA"))
+        self.assertFalse(h.location_matches("Indiana, US"))
+        self.assertTrue(h.location_matches("Bengaluru, India"))
+        self.assertTrue(h.location_matches("Bengaluru-VTP, India"))
+        self.assertTrue(h.location_matches("New Delhi, India"))
+
+    def test_remote_is_kept_but_foreign_remote_is_dropped(self):
+        h = self.hunter()
+        self.assertTrue(h.location_matches("Remote"))
+        self.assertTrue(h.location_matches("Remote - India"))
+        self.assertFalse(h.location_matches("USA | Remote"))
+        self.assertFalse(h.location_matches("Remote - United States"))
+        self.assertFalse(h.location_matches("Remote, EMEA"))
+
+    def test_exclude_locations_beats_an_otherwise_valid_city(self):
+        h = self.hunter()
+        self.assertFalse(h.location_matches("Bengaluru, India / Austin, USA"))
+
+    def test_no_locations_configured_accepts_everything(self):
+        h = self.hunter(locations=[], exclude_locations=[])
+        self.assertTrue(h.location_matches("Anywhere"))
+        self.assertTrue(h.location_matches(""))
+
+    def test_matches_criteria_still_requires_both_title_and_location(self):
+        h = self.hunter()
+        self.assertTrue(h.matches_criteria("Software Intern", "Bengaluru, India"))
+        self.assertFalse(h.matches_criteria("Software Intern", "Austin, USA"))
+        self.assertFalse(h.matches_criteria("Staff Engineer", "Bengaluru, India"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

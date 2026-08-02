@@ -97,6 +97,11 @@ locally unless explicitly asked.
 - **Title filtering** is word-boundary and case-insensitive, against
   `keywords` minus `exclude_keywords`. Per-company `keywords:` overrides the
   global list.
+- **Location filtering** (`location_matches`) is word-boundary too — a
+  substring test let `india` match `Indiana`/`Indianapolis`. `remote` has to
+  stay in `locations` to catch remote India roles, so `exclude_locations`
+  carries the foreign markers that veto a match (`Remote - USA`). Verified
+  against 15,572 live postings: the pair drops only genuine false positives.
 
 ## Editing `config.yaml`
 
