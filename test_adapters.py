@@ -291,6 +291,87 @@ class TestWorkday(unittest.TestCase):
             h.hunt_workday("x", "S", "wd5", include_multi_location=True)
         self.assertEqual(post.call_count, 1)  # one page covers total
 
+    def _paged(self, total, per_page=20):
+        """Pages of `per_page` postings, last one partial, as Workday returns."""
+        pages = []
+        for offset in range(0, total, per_page):
+            count = min(per_page, total - offset)
+            pages.append(_resp(200, {"total": total, "jobPostings": [
+                {"title": "Intern", "locationsText": "India, Pune",
+                 "externalPath": f"/job/x/Intern_JR{offset + i}"}
+                for i in range(count)]}))
+        return pages
+
+    def test_max_pages_reads_result_sets_larger_than_the_default_cap(self):
+        # BlackRock: "intern" also matches internal/international, so the set
+        # runs past 4 pages. Workday caps limit at 20, so the only way to read
+        # it in full is more pages.
+        post = mock.Mock(side_effect=self._paged(164))
+        with mock.patch.object(hh.requests, "post", post):
+            m = self._hunter().hunt_workday(
+                "blackrock", "S", "wd1", include_multi_location=True, max_pages=10)
+        self.assertEqual(post.call_count, 9)  # ceil(164/20), not the default 4
+        self.assertEqual(len(m), 164)
+
+    def test_max_pages_still_truncates_when_the_budget_is_too_small(self):
+        post = mock.Mock(side_effect=self._paged(164))
+        with mock.patch.object(hh.requests, "post", post):
+            with self.assertRaisesRegex(RuntimeError, "truncated"):
+                self._hunter().hunt_workday(
+                    "blackrock", "S", "wd1", include_multi_location=True, max_pages=5)
+        self.assertEqual(post.call_count, 5)
+
+    def test_max_pages_is_bounds_checked(self):
+        h = self._hunter()
+        for bad in (0, 13, True, "5", 2.0):
+            with self.assertRaisesRegex(ValueError, "max_pages"):
+                h.hunt_workday("x", "S", "wd5", max_pages=bad)
+
+    def test_null_location_does_not_fail_the_whole_source(self):
+        # Fractal Analytics returns locationsText: null on some postings. That
+        # is a real Workday state, not schema drift: one such row must not cost
+        # us the other 35 postings on the board.
+        payload = {"total": 2, "jobPostings": [
+            {"title": "Automation Test Engineer Intern", "locationsText": None,
+             "externalPath": "/job/Automation-Test-Engineer_SR-20170"},
+            {"title": "Intern - Data", "locationsText": "India, Pune",
+             "externalPath": "/job/Intern-Data_SR-20171"},
+        ]}
+        with mock.patch.object(hh.requests, "post", return_value=_resp(200, payload)):
+            m = self._hunter().hunt_workday("fractal", "Careers", "wd1",
+                                            include_multi_location=True)
+        titles = [x["title"] for x in m]
+        self.assertIn("Intern - Data", titles)
+        # Unknown location behaves like "N Locations": included on a title match
+        # rather than silently dropped.
+        self.assertIn("Automation Test Engineer Intern", titles)
+
+    def test_null_location_honours_the_location_filter_when_not_including_multi(self):
+        payload = {"total": 1, "jobPostings": [
+            {"title": "Intern - Data", "locationsText": None,
+             "externalPath": "/job/Intern-Data_SR-20171"},
+        ]}
+        with mock.patch.object(hh.requests, "post", return_value=_resp(200, payload)):
+            m = self._hunter().hunt_workday("fractal", "Careers", "wd1",
+                                            include_multi_location=False)
+        self.assertEqual(m, [])
+
+    def test_non_string_location_still_raises_as_schema_drift(self):
+        payload = {"total": 1, "jobPostings": [
+            {"title": "Intern", "locationsText": 42,
+             "externalPath": "/job/x/Intern_JR1"}]}
+        with mock.patch.object(hh.requests, "post", return_value=_resp(200, payload)):
+            with self.assertRaisesRegex(ValueError, "non-string locationsText"):
+                self._hunter().hunt_workday("x", "S", "wd5")
+
+    def test_missing_title_still_raises_as_schema_drift(self):
+        payload = {"total": 1, "jobPostings": [
+            {"title": None, "locationsText": "India, Pune",
+             "externalPath": "/job/x/Intern_JR1"}]}
+        with mock.patch.object(hh.requests, "post", return_value=_resp(200, payload)):
+            with self.assertRaisesRegex(ValueError, "missing title/externalPath"):
+                self._hunter().hunt_workday("x", "S", "wd5")
+
 
 class TestAmazon(unittest.TestCase):
     def _hunter(self):

@@ -233,6 +233,55 @@ class TestCLIAndValidation(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "filename"):
             hh.shard_settings_from_argv(["--state-file", "nested/state.json"])
 
+    def test_pruning_drops_only_sources_missing_from_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "state.json")
+            with open(path, "w") as fh:
+                json.dump({
+                    "Kept": {"jobs": ["1"], "hash": ""},
+                    "Gone": {"jobs": ["2"], "hash": ""},
+                    "_failures": {"Kept": {"count": 1, "alerted": False},
+                                  "Gone": {"count": 3, "alerted": True}},
+                    "_health": {"Kept": {"success": True}, "Gone": {"success": False}},
+                }, fh)
+            sm = hh.StateManager(path)
+            self.assertEqual(sm.prune_removed_sources(["Kept"]), ["Gone"])
+            self.assertEqual(list(sm.state["_failures"]), ["Kept"])
+            self.assertEqual(list(sm.state["_health"]), ["Kept"])
+            # Job ids survive: a source removed and re-added must not re-alert
+            # its entire board.
+            self.assertEqual(sm.state["Gone"]["jobs"], ["2"])
+
+    def test_pruning_is_case_insensitive_and_drops_empty_buckets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "state.json")
+            with open(path, "w") as fh:
+                json.dump({"_failures": {"Dream Sports": {"count": 3}}}, fh)
+            sm = hh.StateManager(path)
+            self.assertEqual(sm.prune_removed_sources(["dream sports"]), [])
+            self.assertEqual(sm.prune_removed_sources(["Something Else"]),
+                             ["Dream Sports"])
+            self.assertNotIn("_failures", sm.state)
+
+    def test_every_supported_flag_is_accepted(self):
+        self.assertEqual(hh.unknown_flags_from_argv([
+            "--test", "--ats-only", "--company", "Adobe", "--company=Groww",
+            "--shard-count", "2", "--shard-index=1", "--state-file", "s.json",
+        ]), [])
+
+    def test_typo_flags_are_rejected_rather_than_ignored(self):
+        # A dropped "--test" would turn an intended dry run into a live
+        # alerting run, so an unrecognised flag has to abort the run.
+        self.assertEqual(hh.unknown_flags_from_argv(["--ats_only"]), ["--ats_only"])
+        self.assertEqual(hh.unknown_flags_from_argv(["--tst"]), ["--tst"])
+        self.assertEqual(hh.unknown_flags_from_argv(["--seed", "extra"]), ["extra"])
+
+    def test_option_values_are_not_scanned_as_flags(self):
+        # The value slot is skipped, so a source name is never reported as an
+        # unknown flag. (--company itself still rejects a "--"-leading value.)
+        self.assertEqual(hh.unknown_flags_from_argv(["--company", "Dream Sports"]), [])
+        self.assertEqual(hh.unknown_flags_from_argv(["--state-file", "state.json"]), [])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

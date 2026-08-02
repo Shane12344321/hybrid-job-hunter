@@ -278,13 +278,6 @@
     ],
     "hash": ""
   },
-  "_failures": {
-    "Dream Sports": {
-      "count": 3,
-      "alerted": true,
-      "reason": "404 Client Error: Not Found for url: https://api.lever.co/v0/postings/dreamsports?mode=json"
-    }
-  },
   "_stats": {
     "finds": [
       [
@@ -601,26 +594,6 @@
       "duration_ms": 1205,
       "request_count": 1,
       "last_success": "2026-07-23T11:04:27Z"
-    },
-    "Mindera": {
-      "source_type": "workable",
-      "last_run": "2026-07-23T11:04:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 1,
-      "duration_ms": 847,
-      "request_count": 1,
-      "last_success": "2026-07-23T11:04:38Z"
-    },
-    "Civica": {
-      "source_type": "workable",
-      "last_run": "2026-07-23T11:04:50Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 1,
-      "duration_ms": 974,
-      "request_count": 1,
-      "last_success": "2026-07-23T11:04:50Z"
     },
     "Weekday AI": {
       "source_type": "workable",
@@ -1251,6 +1224,16 @@
       "duration_ms": 4409,
       "request_count": 1,
       "last_success": "2026-07-23T11:21:15Z"
+    },
+    "Adobe": {
+      "source_type": "workday",
+      "last_run": "2026-08-02T15:05:32Z",
+      "success": true,
+      "last_match_count": 2,
+      "successful_zero_streak": 0,
+      "duration_ms": 3010,
+      "request_count": 2,
+      "last_success": "2026-08-02T15:05:32Z"
     }
   }
 }

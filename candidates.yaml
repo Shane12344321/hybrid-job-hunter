@@ -2594,3 +2594,14 @@ candidates:
   active_source:
     ats: workable
     account: valsoft-corp
+- status: probed
+  india_relevance: verified
+  early_career_evidence: to_verify
+  name: Dream Sports
+  careers_url: https://dreamsports.group/careers
+  category: consumer
+  probe_status: not_found
+  last_probed_at: '2026-08-02T00:00:00Z'
+  reason: Lever board jobs.lever.co/dreamsports is decommissioned (404 on both the
+    board and the v0 postings API); their careers page still links to it. Removed
+    from config.yaml on 2026-08-02 — re-probe for a replacement ATS.

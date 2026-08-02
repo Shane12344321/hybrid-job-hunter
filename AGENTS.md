@@ -81,7 +81,9 @@ locally unless explicitly asked.
   silently lost.
 - **Pagination budget.** Structured sources cap at ≤ 4 requests/run
   (~15s timeout). An incomplete read raises rather than returning a partial
-  page.
+  page. `max_pages:` raises the cap per source where the ATS forces it —
+  Workday hard-caps `limit` at 20 server-side, so a wide `searchText` needs
+  more pages to be read in full (ceiling 12; every other adapter stays at 4).
 - **Title filtering** is word-boundary and case-insensitive, against
   `keywords` minus `exclude_keywords`. Per-company `keywords:` overrides the
   global list.

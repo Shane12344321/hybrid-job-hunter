@@ -14,7 +14,7 @@ A hybrid job hunting automation script that combines the best of both worlds:
 | `smartrecruiters` | SmartRecruiters public Posting API | `company_id`, optional `country`, `query` or `queries` (up to four shared requests) |
 | `workable` | Workable public careers API | `account` |
 | `oracle_hcm` | Oracle HCM Cloud (J.P. Morgan, Uber) | `host`, `site_number`, `keyword` or `queries`, optional `location`/`location_id`/`max_pages` (1–4 shared requests) |
-| `workday` | Workday CXS boards (NVIDIA, Citi, BlackRock, Adobe, Salesforce, Sprinklr, Fractal, …) | `tenant`, `wd_host`, `site`, optional `search`/`include_multi_location` |
+| `workday` | Workday CXS boards (NVIDIA, Citi, BlackRock, Adobe, Salesforce, Sprinklr, Fractal, …) | `tenant`, `wd_host`, `site`, optional `search`/`include_multi_location`/`max_pages` (1–12; Workday caps page size at 20, so wide `search` terms need more pages) |
 | `amazon` | amazon.jobs search | optional `query`, `location`, `categories` (server-side `category[]` filter) |
 | `atlassian` | Atlassian public careers listings feed | optional `location`, `categories` |
 | `eightfold` | Public Eightfold/PCSX boards (Microsoft, Qualcomm) | `base_url`, `domain`, optional `query`, `location`, `seniority` |
@@ -27,8 +27,9 @@ A hybrid job hunting automation script that combines the best of both worlds:
 Every hunter raises on failure (network error, non-200, bad JSON/HTML, missing
 result markers, or truncated pagination), so a dead source is told apart from
 one with no matches and gets a ⚠️ alert after 3 consecutive failures. Structured
-sources use a hard **≤ 4 request/run** pagination budget and normally a 15s
-timeout; incomplete reads fail loudly.
+sources use a hard **≤ 4 request/run** pagination budget by default and normally
+a 15s timeout; incomplete reads fail loudly. A source can raise its own cap with
+`max_pages:` where the ATS forces it (see the `workday` row below).
 
 This script is built to run entirely on **GitHub Actions for free**, with zero infrastructure needed.
 
@@ -159,6 +160,9 @@ Useful flags:
 - `python hybrid_hunter.py --test --company "Microsoft"` — run or seed one named source. `--company` is repeatable and accepts configured aliases; associated fallback/program monitors are included automatically.
 - `python hybrid_hunter.py --ats-only` / `--pages-only` — hunt only ATS boards (no browser needed) or only Playwright custom pages. The scheduled workflow uses `--ats-only` for the hourly runs.
 - `python hybrid_hunter.py --heartbeat` — send a read-only status report (sources, finds in last 24h/7d, failing sources). Does not hunt.
+- `python hybrid_hunter.py --help` — list every supported flag. An unrecognized
+  flag aborts the run rather than being ignored, so a typo can't silently turn
+  an intended `--test` into a live alerting run.
 - `python hybrid_hunter.py --validate` — preflight config lint: unknown `ats:` types, missing required adapter fields, duplicate source names. Exits nonzero on problems, hunts nothing.
 - `python hybrid_hunter.py --test --shard-count 8 --shard-index 0` — run one
   deterministic source shard. Related fallback/program pages stay with their

@@ -283,9 +283,6 @@ ats_companies:
 - name: InMobi
   ats: greenhouse
   slug: inmobi  # adtech unicorn, 38 India roles
-- name: Dream Sports
-  ats: lever
-  slug: dreamsports  # Dream11 parent, all-India board (Mumbai)
 - name: Glance
   ats: greenhouse
   slug: glance  # InMobi consumer arm, Bangalore eng
@@ -319,8 +316,11 @@ ats_companies:
   ats: workday
   tenant: blackrock
   wd_host: wd1
-  site: BlackRock_Professional  # total=134, India (Gurgaon/Mumbai) roles
+  site: BlackRock_Professional  # India (Gurgaon/Mumbai) roles
   include_multi_location: true
+  # "intern" also matches internal/international here: total=164 as of
+  # 2026-08-02 and growing, and Workday caps limit at 20 per page.
+  max_pages: 10
 - name: Adobe
   ats: workday
   tenant: adobe

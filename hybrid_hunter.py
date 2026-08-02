@@ -117,6 +117,27 @@ class StateManager:
     def failing_now(self):
         return self.state.get("_failures", {})
 
+    def prune_removed_sources(self, configured_names):
+        """Drop failure/health rows for sources no longer in config.yaml.
+
+        record_success only fires when a source actually runs, so a source
+        deleted from config while failing would otherwise stay in `_failures`
+        forever — reported as a live failure by every heartbeat and catalog
+        report. Membership comes from the whole config, not from what this run
+        hunted, so shard and --company runs never prune each other's rows."""
+        keep = {name.casefold() for name in configured_names}
+        removed = []
+        for bucket in ("_failures", "_health"):
+            rows = self.state.get(bucket)
+            if not isinstance(rows, dict):
+                continue
+            for name in [n for n in rows if n.casefold() not in keep]:
+                del rows[name]
+                removed.append(name)
+            if not rows:
+                self.state.pop(bucket, None)
+        return sorted(set(removed))
+
     def record_new_jobs(self, count):
         """Keep a 7-day rolling log of finds (only written when something
         was found, so quiet runs don't churn state.json)."""
@@ -658,7 +679,7 @@ class ATSHunter:
         return matches
 
     def hunt_workday(self, tenant, site, wd_host="wd5", search="intern",
-                     include_multi_location=False, keywords=None):
+                     include_multi_location=False, max_pages=4, keywords=None):
         """Hunter for Workday CXS boards (NVIDIA, Citi, BlackRock, Adobe, …).
         POSTs to the tenant's CXS jobs endpoint with server-side `searchText`
         so one page is usually enough; paginates only up to the request cap.
@@ -667,7 +688,14 @@ class ATSHunter:
         matches_criteria). We deliberately DON'T send Workday's location facet:
         the India GUID is tenant-specific (NVIDIA 400s on the shared one), so a
         hardcoded facet is brittle — searchText + matches_criteria is portable.
-        `include_multi_location` gates the "N Locations" inclusion rule below."""
+        `include_multi_location` gates the "N Locations" inclusion rule below.
+
+        `max_pages` is configurable because Workday hard-caps `limit` at 20
+        (a larger limit 400s), so a tenant whose fuzzy `searchText` matches a
+        big set — BlackRock's "intern" also hits "internal"/"international" —
+        needs more than the default 4 pages to read its result set in full."""
+        if not isinstance(max_pages, int) or isinstance(max_pages, bool) or not 1 <= max_pages <= 12:
+            raise ValueError("Workday max_pages must be an integer from 1 to 12")
         base = f"https://{tenant}.{wd_host}.myworkdayjobs.com"
         url = f"{base}/wday/cxs/{tenant}/{site}/jobs"
         limit = 20
@@ -675,8 +703,8 @@ class ATSHunter:
         fetched = 0
         total = None
         seen_paths = set()
-        # ≤ 4 requests/source: cap the pagination loop hard (plan §3).
-        for page in range(4):
+        # Cap the pagination loop hard so one source can't run away (plan §3).
+        for page in range(max_pages):
             body = {"appliedFacets": {}, "limit": limit, "offset": page * limit, "searchText": search}
             res = self._post(url, json=body, timeout=15,
                              headers={**API_HEADERS, "Content-Type": "application/json", "Accept": "application/json"})
@@ -695,8 +723,16 @@ class ATSHunter:
                 location = job.get("locationsText")
                 path = job.get("externalPath")
                 if (not isinstance(title, str) or not title.strip()
-                        or not isinstance(location, str) or not isinstance(path, str) or not path):
-                    raise ValueError("Workday posting missing title/locationsText/externalPath")
+                        or not isinstance(path, str) or not path):
+                    raise ValueError("Workday posting missing title/externalPath")
+                # A posting with no locationsText is a real Workday state, not
+                # schema drift, so it must not fail the whole source. Treat it
+                # like "N Locations": unknown location can't match a city, so
+                # honour include_multi_location rather than silently dropping.
+                if location is None:
+                    location = ""
+                elif not isinstance(location, str):
+                    raise ValueError("Workday posting has a non-string locationsText")
                 if path in seen_paths:
                     raise RuntimeError("Workday pagination repeated a posting; refusing an incomplete read")
                 seen_paths.add(path)
@@ -705,7 +741,8 @@ class ATSHunter:
                 # India-eligible role. With include_multi_location set, include
                 # such a posting on a title match alone (one extra alert beats a
                 # silent miss — see plan §4.1). Otherwise honour the location filter.
-                is_multi = bool(re.match(r'^\d+\s+Locations$', location.strip()))
+                is_multi = (not location.strip()
+                            or bool(re.match(r'^\d+\s+Locations$', location.strip())))
                 if is_multi and include_multi_location:
                     if not self.title_matches(title, keywords):
                         continue
@@ -1512,9 +1549,13 @@ def validate_config(config):
                 or any(not isinstance(item, str) or not item for item in entry["queries"])):
             problems.append(f"{name}: queries must be a non-empty list of strings")
         if "max_pages" in entry:
+            # Workday needs a higher ceiling than the other paginated adapters
+            # because its `limit` is capped at 20 server-side (see hunt_workday).
+            ceiling = 12 if ats == "workday" else 4
             value = entry["max_pages"]
-            if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 4:
-                problems.append(f"{name}: max_pages must be an integer from 1 to 4")
+            if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= ceiling:
+                problems.append(
+                    f"{name}: max_pages must be an integer from 1 to {ceiling}")
         entry_aliases = entry.get("aliases") or []
         if not isinstance(entry_aliases, list) or any(not isinstance(a, str) or not a for a in entry_aliases):
             problems.append(f"{name}: aliases must be a list of non-empty strings")
@@ -1621,7 +1662,67 @@ def send_heartbeat(config, state_manager, notifier):
     if not notifier.send("\n".join(heartbeat)):
         raise RuntimeError("heartbeat could not be delivered to Telegram")
 
+USAGE = """\
+usage: hybrid_hunter.py [options]
+
+Modes (default: live run — hunts every source and sends Telegram alerts):
+  --test                Hunt and print matches; no state writes, no alerts
+  --seed                Baseline current postings into state without alerting
+  --validate            Lint config.yaml and exit
+  --heartbeat           Send the status digest to Telegram and exit
+  -h, --help            Show this message and exit
+
+Scope:
+  --ats-only            Skip Playwright-rendered custom pages
+  --pages-only          Skip structured ATS adapters
+  --company NAME        Restrict to one source (repeatable; accepts aliases)
+
+Sharding:
+  --shard-count N       Split sources into N deterministic shards (default 1)
+  --shard-index I       Run shard I (0-based; default 0)
+  --state-file NAME     Override the state filename (working directory only)
+"""
+
+# Every accepted flag. An unrecognised flag must abort rather than be ignored:
+# the workflow builds this command line dynamically, and silently dropping a
+# typo'd `--test` would turn an intended dry run into a live alerting run.
+KNOWN_FLAGS = {
+    "--test", "--seed", "--validate", "--heartbeat", "--help", "-h",
+    "--ats-only", "--pages-only", "--company",
+    "--shard-count", "--shard-index", "--state-file",
+}
+VALUE_FLAGS = {"--company", "--shard-count", "--shard-index", "--state-file"}
+
+
+def unknown_flags_from_argv(argv):
+    """Return argv entries that are not accepted flags or their values."""
+    unknown = []
+    skip_next = False
+    for arg in argv:
+        if skip_next:
+            skip_next = False
+            continue
+        if not arg.startswith("-"):
+            unknown.append(arg)
+            continue
+        name = arg.split("=", 1)[0]
+        if name not in KNOWN_FLAGS:
+            unknown.append(arg)
+            continue
+        if name in VALUE_FLAGS and "=" not in arg:
+            skip_next = True
+    return unknown
+
+
 def main():
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(USAGE, end="")
+        raise SystemExit(0)
+    unknown = unknown_flags_from_argv(sys.argv[1:])
+    if unknown:
+        raise SystemExit(
+            "unknown argument(s): " + ", ".join(unknown) + "\n\n" + USAGE)
+
     test_mode = "--test" in sys.argv
     seed_mode = "--seed" in sys.argv
     hunt_ats = "--pages-only" not in sys.argv
@@ -1771,6 +1872,7 @@ def main():
                     wd_host=comp.get("wd_host", "wd5"),
                     search=comp.get("search", "intern"),
                     include_multi_location=comp.get("include_multi_location", False),
+                    max_pages=comp.get("max_pages", 4),
                     keywords=kw_override
                 )
             elif ats_type == "amazon":
@@ -1974,6 +2076,15 @@ def main():
             state_manager.record_new_jobs(len(new_jobs))
 
     if not test_mode:
+        # Deliberately limited to the derived failure/health rows: per-source
+        # job ids stay, so temporarily removing and re-adding a source can't
+        # replay its whole board as "new".
+        pruned = state_manager.prune_removed_sources(
+            [entry.get("name", "") for entry in
+             list(config.get("ats_companies") or [])
+             + list(config.get("custom_pages") or [])])
+        if pruned:
+            print(f"🧹 Pruned state for removed source(s): {', '.join(pruned)}")
         state_manager.save()
     write_step_summary(run_report, new_jobs, state_manager)
 
