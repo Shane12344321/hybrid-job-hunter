@@ -10,6 +10,9 @@ from playwright.sync_api import sync_playwright
 import re
 import time
 import calendar
+import uuid
+import tempfile
+from urllib.parse import urljoin
 
 STATE_FILE = "state.json"
 TELEGRAM_MAX_LEN = 4096
@@ -30,14 +33,18 @@ class StateManager:
     """Tracks seen jobs/page hashes. Reserved keys (prefixed "_") hold
     non-company data such as the pending-alert queue."""
 
-    def __init__(self):
+    def __init__(self, state_file=None):
+        self.path = state_file or STATE_FILE
         self.state = {}
-        if os.path.exists(STATE_FILE):
+        if os.path.exists(self.path):
             try:
-                with open(STATE_FILE, 'r') as f:
+                with open(self.path, 'r') as f:
                     self.state = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                self.state = {}
+                if not isinstance(self.state, dict):
+                    raise ValueError("top-level state must be a JSON object")
+            except (json.JSONDecodeError, OSError, ValueError) as e:
+                raise RuntimeError(
+                    f"Could not load {self.path}; refusing to discard crawler state: {e}") from e
 
     def _ensure(self, company):
         if company not in self.state:
@@ -71,12 +78,11 @@ class StateManager:
         print(f"📬 Retrying {len(pending)} pending alert(s) from previous runs...")
         still_pending = []
         for entry in pending:
-            entry["attempts"] += 1
+            entry["attempts"] = min(int(entry.get("attempts", 0)) + 1, max_attempts)
             if notifier.send(entry["message"]):
                 continue
             if entry["attempts"] >= max_attempts:
-                print(f"Dropping alert after {entry['attempts']} failed delivery attempts.")
-                continue
+                print(f"Alert still undelivered after {entry['attempts']} attempts; retaining it for future runs.")
             still_pending.append(entry)
         self.state["_pending"] = still_pending
 
@@ -122,6 +128,33 @@ class StateManager:
         cutoff = time.time() - 7 * 86400
         stats["finds"] = [f for f in finds if _parse_ts(f[0]) >= cutoff]
 
+    def record_source_run(self, source, source_type, success, match_count,
+                          duration_seconds, request_count, reason=None):
+        """Persist compact source-health evidence for catalog reporting."""
+        health = self.state.setdefault("_health", {})
+        previous = health.get(source) or {}
+        zero_streak = previous.get("successful_zero_streak", 0)
+        if success:
+            zero_streak = zero_streak + 1 if match_count == 0 else 0
+        entry = {
+            "source_type": source_type,
+            "last_run": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "success": bool(success),
+            "last_match_count": match_count if success else None,
+            "successful_zero_streak": zero_streak,
+            "duration_ms": max(0, int(duration_seconds * 1000)),
+            "request_count": max(0, int(request_count)),
+        }
+        if success:
+            entry["last_success"] = entry["last_run"]
+            if previous.get("last_failure"):
+                entry["last_failure"] = previous["last_failure"]
+        else:
+            entry["last_failure"] = entry["last_run"]
+            entry["last_success"] = previous.get("last_success")
+            entry["reason"] = str(reason)[:200]
+        health[source] = entry
+
     def new_jobs_since(self, seconds):
         cutoff = time.time() - seconds
         return sum(c for ts, c in self.state.get("_stats", {}).get("finds", []) if _parse_ts(ts) >= cutoff)
@@ -137,21 +170,45 @@ class StateManager:
         return len(self.state.get("_pending", []))
 
     def save(self):
-        with open(STATE_FILE, 'w') as f:
-            json.dump(self.state, f, indent=2)
+        target = os.path.abspath(self.path)
+        directory = os.path.dirname(target)
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                    "w", dir=directory, prefix=f".{os.path.basename(target)}.",
+                    suffix=".tmp", delete=False) as f:
+                temp_path = f.name
+                json.dump(self.state, f, indent=2)
+                f.write("\n")
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, target)
+        except Exception:
+            if temp_path:
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    pass
+            raise
 
 class Notifier:
     def __init__(self, config):
-        self.token = os.environ.get("TELEGRAM_TOKEN", config.get("telegram", {}).get("token", ""))
-        self.chat_id = os.environ.get("TELEGRAM_CHAT_ID", config.get("telegram", {}).get("chat_id", ""))
-        self.enabled = bool(self.token and self.chat_id and not str(self.token).startswith("${"))
+        telegram = config.get("telegram") or {}
+        self.token = os.environ.get("TELEGRAM_TOKEN", telegram.get("token", ""))
+        self.chat_id = os.environ.get("TELEGRAM_CHAT_ID", telegram.get("chat_id", ""))
+        token = str(self.token).strip()
+        chat_id = str(self.chat_id).strip()
+        self.enabled = bool(
+            token and chat_id and not token.startswith("${") and not chat_id.startswith("${")
+        )
 
     def send(self, message, retries=3):
         """Returns True only when the message was actually delivered
-        (or when running without credentials, where print is delivery)."""
+        to Telegram."""
         print(f"ALERT: {re.sub(r'<[^>]+>', '', message)}")
         if not self.enabled:
-            return True
+            print("Telegram delivery is disabled because credentials are missing or unresolved.")
+            return False
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
         payload = {
             "chat_id": self.chat_id,
@@ -163,7 +220,14 @@ class Notifier:
             try:
                 res = requests.post(url, json=payload, timeout=15)
                 if res.ok:
-                    return True
+                    try:
+                        response_body = res.json()
+                    except ValueError:
+                        response_body = None
+                    if isinstance(response_body, dict) and response_body.get("ok") is True:
+                        return True
+                    print("Telegram returned a success status without an ok=true response body.")
+                    return False
                 if res.status_code == 400:
                     # Malformed message — retrying won't help.
                     print(f"Telegram rejected message (400): {res.text[:200]}")
@@ -173,6 +237,11 @@ class Notifier:
                 print(f"Telegram send error: {e} (attempt {attempt + 1}/{retries})")
             time.sleep(2 ** attempt)
         return False
+
+def _clip(value, limit):
+    text = str(value or "")
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
 
 def build_digest(new_jobs, page_changes, warnings=None):
     """Group all matches from one run into Telegram-sized message chunks.
@@ -185,28 +254,50 @@ def build_digest(new_jobs, page_changes, warnings=None):
             by_company.setdefault(job["company"], []).append(job)
         for company, jobs in by_company.items():
             lines.append("")
-            lines.append(f"<b>{html.escape(company)}</b>")
+            lines.append(f"<b>{html.escape(_clip(company, 300))}</b>")
             for job in jobs:
-                title = html.escape(job.get("title") or "Untitled")
-                location = html.escape(job.get("location") or "")
-                job_url = html.escape(job.get("url") or "", quote=True)
+                title = html.escape(_clip(job.get("title") or "Untitled", 1000))
+                location = html.escape(_clip(job.get("location") or "", 400))
+                raw_url = str(job.get("url") or "")
                 suffix = f" — {location}" if location else ""
-                lines.append(f"• <a href='{job_url}'>{title}</a>{suffix}")
+                if raw_url and len(raw_url) <= 1800:
+                    job_url = html.escape(raw_url, quote=True)
+                    lines.append(f"• <a href='{job_url}'>{title}</a>{suffix}")
+                else:
+                    lines.append(f"• {title}{suffix} (link unavailable)")
     for change in page_changes:
         lines.append("")
-        page_url = html.escape(change["url"], quote=True)
-        lines.append(f"🔍 <b>Changes detected at {html.escape(change['name'])}</b>")
-        lines.append(f"Keywords & locations matched — <a href='{page_url}'>check the page</a>")
+        raw_url = str(change["url"])
+        lines.append(f"🔍 <b>Changes detected at {html.escape(_clip(change['name'], 300))}</b>")
+        if len(raw_url) <= 1800:
+            page_url = html.escape(raw_url, quote=True)
+            lines.append(f"Keywords & locations matched — <a href='{page_url}'>check the page</a>")
+        else:
+            lines.append("Keywords & locations matched — page URL is too long to include safely")
     for warning in warnings or []:
         lines.append("")
         lines.append(warning)
 
+    # Every generated line is bounded above. Keep a defensive plain-text
+    # fallback so an unexpected oversized warning cannot create a Telegram 400
+    # that is retried forever.
+    bounded_lines = []
+    max_chunk = TELEGRAM_MAX_LEN - 100
+    for line in lines:
+        if len(line) <= max_chunk:
+            bounded_lines.append(line)
+            continue
+        plain = re.sub(r"<[^>]+>", "", line)
+        for start in range(0, len(plain), 600):
+            bounded_lines.append(html.escape(plain[start:start + 600]))
+
     chunks = []
     current = ""
-    for line in lines:
+    for line in bounded_lines:
         candidate = f"{current}\n{line}" if current else line
-        if len(candidate) > TELEGRAM_MAX_LEN - 100:
-            chunks.append(current)
+        if len(candidate) > max_chunk:
+            if current:
+                chunks.append(current)
             current = line
         else:
             current = candidate
@@ -240,12 +331,31 @@ class ATSHunter:
         self.keywords = [k.lower() for k in config.get("keywords", [])]
         self.exclude_keywords = [k.lower() for k in config.get("exclude_keywords") or []]
         self.locations = [l.lower() for l in config.get("locations", [])]
+        self.request_count = 0
+
+    def reset_request_count(self):
+        self.request_count = 0
+
+    def _get(self, *args, **kwargs):
+        self.request_count += 1
+        return requests.get(*args, **kwargs)
+
+    def _post(self, *args, **kwargs):
+        self.request_count += 1
+        return requests.post(*args, **kwargs)
+
+    @staticmethod
+    def _title_for_matching(title):
+        # `_` is often a visual separator, while dots inside abbreviations
+        # should not let "Ph.D." evade an explicit `phd` exclusion.
+        normalized = title.lower().replace("_", " ")
+        return re.sub(r"(?<=\w)\.(?=\w)", "", normalized)
 
     def matches_criteria(self, title, location, keywords=None):
         """`keywords` overrides the global keyword list (per-company config).
         Titles hitting any exclude_keyword are rejected regardless."""
         if not title: return False
-        title_lower = title.lower()
+        title_lower = self._title_for_matching(title)
         location_lower = location.lower() if location else ""
 
         if any(re.search(r'\b' + re.escape(k) + r'\b', title_lower) for k in self.exclude_keywords):
@@ -264,7 +374,7 @@ class ATSHunter:
         keeps India-eligible multi-location postings from being silently
         dropped (plan §4.1)."""
         if not title: return False
-        title_lower = title.lower()
+        title_lower = self._title_for_matching(title)
         if any(re.search(r'\b' + re.escape(k) + r'\b', title_lower) for k in self.exclude_keywords):
             return False
         keywords = self.keywords if keywords is None else keywords
@@ -275,66 +385,276 @@ class ATSHunter:
 
     def hunt_ashby(self, slug, keywords=None):
         url = f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
-        res = requests.get(url, timeout=10, headers=API_HEADERS)
+        res = self._get(url, timeout=10, headers=API_HEADERS)
         res.raise_for_status()
-        jobs = res.json().get("jobs", [])
+        payload = res.json()
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+            raise ValueError("Ashby response missing jobs[]")
+        jobs = payload["jobs"]
         matches = []
         for job in jobs:
-            title = job.get("title", "")
-            location = job.get("location", "")
+            if not isinstance(job, dict):
+                raise ValueError("Ashby jobs[] contained a non-object entry")
+            job_id = str(job.get("id") or "")
+            title = job.get("title")
+            location = job.get("location")
+            job_url = job.get("jobUrl")
+            if (not job_id or not isinstance(title, str) or not title.strip()
+                    or not isinstance(location, str) or not isinstance(job_url, str) or not job_url):
+                raise ValueError("Ashby job missing id/title/location/jobUrl")
             if self.matches_criteria(title, location, keywords):
-                matches.append({"id": job.get("id"), "title": title, "location": location, "url": job.get("jobUrl")})
+                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
         return matches
 
     def hunt_lever(self, slug, keywords=None):
         url = f"https://api.lever.co/v0/postings/{slug}?mode=json"
-        res = requests.get(url, timeout=10, headers=API_HEADERS)
+        res = self._get(url, timeout=10, headers=API_HEADERS)
         res.raise_for_status()
         jobs = res.json()
+        if not isinstance(jobs, list):
+            raise ValueError("Lever response is not a postings array")
         matches = []
         for job in jobs:
-            title = job.get("text", "")
-            location = job.get("categories", {}).get("location", "")
+            if not isinstance(job, dict) or not isinstance(job.get("categories"), dict):
+                raise ValueError("Lever posting missing categories object")
+            job_id = str(job.get("id") or "")
+            title = job.get("text")
+            location = job["categories"].get("location")
+            job_url = job.get("hostedUrl")
+            if (not job_id or not isinstance(title, str) or not title.strip()
+                    or not isinstance(location, str) or not isinstance(job_url, str) or not job_url):
+                raise ValueError("Lever posting missing id/text/location/hostedUrl")
             if self.matches_criteria(title, location, keywords):
-                matches.append({"id": job.get("id"), "title": title, "location": location, "url": job.get("hostedUrl")})
+                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
         return matches
 
     def hunt_greenhouse(self, slug, keywords=None):
         url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
-        res = requests.get(url, timeout=10, headers=API_HEADERS)
+        res = self._get(url, timeout=10, headers=API_HEADERS)
         res.raise_for_status()
-        jobs = res.json().get("jobs", [])
+        payload = res.json()
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+            raise ValueError("Greenhouse response missing jobs[]")
+        jobs = payload["jobs"]
         matches = []
         for job in jobs:
-            title = job.get("title", "")
-            location = job.get("location", {}).get("name", "")
+            if not isinstance(job, dict) or not isinstance(job.get("location"), dict):
+                raise ValueError("Greenhouse job missing location object")
+            job_id = str(job.get("id") or "")
+            title = job.get("title")
+            location = job["location"].get("name")
+            job_url = job.get("absolute_url")
+            if (not job_id or not isinstance(title, str) or not title.strip()
+                    or not isinstance(location, str) or not isinstance(job_url, str) or not job_url):
+                raise ValueError("Greenhouse job missing id/title/location/absolute_url")
             if self.matches_criteria(title, location, keywords):
-                matches.append({"id": str(job.get("id")), "title": title, "location": location, "url": job.get("absolute_url")})
+                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+        return matches
+
+    def hunt_smartrecruiters(self, company_id, country=None, query=None,
+                             queries=None, keywords=None):
+        """Hunt SmartRecruiters' public Posting API within four requests."""
+        endpoint = f"https://api.smartrecruiters.com/v1/companies/{company_id}/postings"
+        limit = 100
+        matches = []
+        seen_ids = set()
+        search_terms = queries if queries is not None else [query]
+        if not search_terms:
+            search_terms = [None]
+        requests_used = 0
+        for term in search_terms:
+            offset = 0
+            total = None
+            while total is None or offset < total:
+                if requests_used >= 4:
+                    label = term or "all postings"
+                    raise RuntimeError(
+                        f"SmartRecruiters pagination truncated for '{label}' "
+                        f"at {offset}/{total} after 4 shared requests")
+                params = {"limit": limit, "offset": offset}
+                if country:
+                    params["country"] = country
+                if term:
+                    params["q"] = term
+                res = self._get(endpoint, params=params, timeout=15, headers=API_HEADERS)
+                requests_used += 1
+                res.raise_for_status()
+                payload = res.json()
+                if (not isinstance(payload, dict)
+                        or not isinstance(payload.get("content"), list)
+                        or "totalFound" not in payload):
+                    raise ValueError("SmartRecruiters response missing totalFound/content[]")
+                try:
+                    total = int(payload["totalFound"])
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("SmartRecruiters totalFound is not an integer") from exc
+                postings = payload["content"]
+                for posting in postings:
+                    if (not isinstance(posting, dict)
+                            or not isinstance(posting.get("location"), dict)):
+                        raise ValueError("SmartRecruiters posting missing location object")
+                    job_id = str(posting.get("id") or posting.get("uuid") or "")
+                    title = posting.get("name")
+                    location = posting["location"]
+                    location_text = location.get("fullLocation") or ", ".join(
+                        str(location.get(field)).strip()
+                        for field in ("city", "region", "country")
+                        if location.get(field))
+                    if location.get("remote"):
+                        location_text = (
+                            f"{location_text}, Remote" if location_text else "Remote")
+                    if (not job_id or not isinstance(title, str) or not title.strip()
+                            or not location_text):
+                        raise ValueError("SmartRecruiters posting missing id/name/location")
+                    if job_id in seen_ids:
+                        continue
+                    seen_ids.add(job_id)
+                    if self.matches_criteria(title, location_text, keywords):
+                        matches.append({
+                            "id": job_id,
+                            "title": title,
+                            "location": location_text,
+                            "url": f"https://jobs.smartrecruiters.com/{company_id}/{job_id}",
+                        })
+                offset += len(postings)
+                if not postings and offset < total:
+                    raise RuntimeError(
+                        f"SmartRecruiters pagination stalled at {offset}/{total}")
+        return matches
+
+    def hunt_workable(self, account, keywords=None):
+        """Hunt Workable's documented public careers-page endpoint."""
+        endpoint = f"https://www.workable.com/api/accounts/{account}"
+        res = self._get(
+            endpoint, params={"details": "false"}, timeout=20,
+            headers={**API_HEADERS, "Accept": "application/json"})
+        res.raise_for_status()
+        payload = res.json()
+        if (not isinstance(payload, dict) or not isinstance(payload.get("name"), str)
+                or not isinstance(payload.get("jobs"), list)):
+            raise ValueError("Workable response missing name/jobs[]")
+        matches = []
+        seen_ids = set()
+        for job in payload["jobs"]:
+            if not isinstance(job, dict):
+                raise ValueError("Workable jobs[] contained a non-object entry")
+            job_id = str(job.get("shortcode") or "")
+            title = job.get("title")
+            job_url = job.get("url") or job.get("shortlink")
+            locations = job.get("locations")
+            location_parts = []
+            if isinstance(locations, list):
+                for location in locations:
+                    if not isinstance(location, dict):
+                        raise ValueError("Workable job locations[] contained a non-object")
+                    rendered = ", ".join(
+                        str(location.get(field)).strip()
+                        for field in ("city", "region", "country")
+                        if location.get(field))
+                    if rendered and rendered not in location_parts:
+                        location_parts.append(rendered)
+            if not location_parts:
+                rendered = ", ".join(
+                    str(job.get(field)).strip()
+                    for field in ("city", "state", "country")
+                    if job.get(field))
+                if rendered:
+                    location_parts.append(rendered)
+            if job.get("telecommuting"):
+                location_parts.append("Remote")
+            location_text = " / ".join(location_parts)
+            if (not job_id or not isinstance(title, str) or not title.strip()
+                    or not isinstance(job_url, str) or not job_url or not location_text):
+                raise ValueError("Workable job missing shortcode/title/url/location")
+            if job_id in seen_ids:
+                continue
+            seen_ids.add(job_id)
+            if self.matches_criteria(title, location_text, keywords):
+                matches.append({
+                    "id": job_id, "title": title,
+                    "location": location_text, "url": job_url,
+                })
         return matches
 
     def hunt_oracle_hcm(self, site_number, keyword="intern", location_id=None,
-                        host="jpmc.fa.oraclecloud.com", keywords=None):
+                        location=None, host="jpmc.fa.oraclecloud.com", max_pages=4,
+                        queries=None, keywords=None):
         """Hunter for Oracle HCM Cloud portals. `host` selects the tenant
-        (default JP Morgan); `keyword` is the server-side search term."""
+        (default JP Morgan); `keyword` and `location` narrow server-side.
+
+        Oracle puts pagination inside the finder expression (`,offset=N`), not
+        in the outer REST query.  Treat an incomplete four-page read as a
+        failure so a large/truncated result set can never masquerade as a
+        healthy zero-match source. `max_pages` is configurable for tenants
+        whose fuzzy server search returns a large country-scoped set."""
+        if not isinstance(max_pages, int) or isinstance(max_pages, bool) or not 1 <= max_pages <= 4:
+            raise ValueError("Oracle HCM max_pages must be an integer from 1 to 4")
+        search_terms = queries if queries is not None else [keyword]
+        if (not isinstance(search_terms, list) or not search_terms
+                or any(not isinstance(value, str) or not value for value in search_terms)):
+            raise ValueError("Oracle HCM queries must be a non-empty list of strings")
         url = f"https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitions"
-        params = f"onlyData=true&expand=requisitionList.secondaryLocations,requisitionList.requisitionFlexFields&finder=findReqs;siteNumber={site_number},keyword={keyword}"
-        if location_id:
-            params += f",locationId={location_id}"
-        params += "&limit=25"
-        res = requests.get(f"{url}?{params}", timeout=15, headers=API_HEADERS)
-        res.raise_for_status()
-        items = res.json().get("items", [])
-        if not items:
-            return []
-        reqs = items[0].get("requisitionList", [])
         matches = []
-        for job in reqs:
-            title = job.get("Title", "")
-            location = job.get("PrimaryLocation", "")
-            if self.matches_criteria(title, location, keywords):
-                job_id = str(job.get("Id", ""))
-                job_url = f"https://{host}/hcmUI/CandidateExperience/en/sites/{site_number}/job/{job_id}"
-                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+        seen_job_ids = {}
+        limit = 25
+        requests_used = 0
+        for search_term in search_terms:
+            fetched = 0
+            total = None
+            page = 0
+            while requests_used < max_pages:
+                finder = f"findReqs;siteNumber={site_number},keyword={search_term}"
+                if location_id:
+                    finder += f",locationId={location_id}"
+                elif location:
+                    finder += f",location={location}"
+                if page:
+                    finder += f",offset={page * limit}"
+                params = (
+                    "onlyData=true&expand=requisitionList.secondaryLocations,"
+                    "requisitionList.requisitionFlexFields&finder=" + finder + f"&limit={limit}"
+                )
+                res = self._get(f"{url}?{params}", timeout=15, headers=API_HEADERS)
+                requests_used += 1
+                res.raise_for_status()
+                payload = res.json()
+                if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+                    raise ValueError("Oracle HCM response missing items[]")
+                items = payload["items"]
+                if not items or not isinstance(items[0], dict):
+                    raise ValueError("Oracle HCM response missing search result")
+                result = items[0]
+                if "TotalJobsCount" not in result or not isinstance(result.get("requisitionList"), list):
+                    raise ValueError("Oracle HCM response missing TotalJobsCount/requisitionList")
+                total = int(result["TotalJobsCount"])
+                reqs = result["requisitionList"]
+                fetched += len(reqs)
+                for job in reqs:
+                    if not isinstance(job, dict):
+                        raise ValueError("Oracle HCM requisitionList contained a non-object entry")
+                    job_id = str(job.get("Id") or "")
+                    title = job.get("Title")
+                    location_text = job.get("PrimaryLocation")
+                    if (not job_id or not isinstance(title, str) or not title.strip()
+                            or not isinstance(location_text, str)):
+                        raise ValueError("Oracle HCM job missing Id/Title/PrimaryLocation")
+                    signature = (title, location_text)
+                    if job_id in seen_job_ids:
+                        if seen_job_ids[job_id] != signature:
+                            raise RuntimeError("Oracle HCM reused a stable id for conflicting jobs")
+                        continue
+                    seen_job_ids[job_id] = signature
+                    if self.matches_criteria(title, location_text, keywords):
+                        job_url = f"https://{host}/hcmUI/CandidateExperience/en/sites/{site_number}/job/{job_id}"
+                        matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
+                page += 1
+                if total == 0 or fetched >= total or not reqs:
+                    break
+            if total is None or fetched < total:
+                raise RuntimeError(
+                    f"Oracle HCM results truncated for query '{search_term}' ({fetched}/{total})")
+        if requests_used > max_pages:
+            raise RuntimeError("Oracle HCM exceeded its request budget")
         return matches
 
     def hunt_workday(self, tenant, site, wd_host="wd5", search="intern",
@@ -352,17 +672,34 @@ class ATSHunter:
         url = f"{base}/wday/cxs/{tenant}/{site}/jobs"
         limit = 20
         matches = []
+        fetched = 0
+        total = None
+        seen_paths = set()
         # ≤ 4 requests/source: cap the pagination loop hard (plan §3).
         for page in range(4):
             body = {"appliedFacets": {}, "limit": limit, "offset": page * limit, "searchText": search}
-            res = requests.post(url, json=body, timeout=15,
-                                headers={**API_HEADERS, "Content-Type": "application/json", "Accept": "application/json"})
+            res = self._post(url, json=body, timeout=15,
+                             headers={**API_HEADERS, "Content-Type": "application/json", "Accept": "application/json"})
             res.raise_for_status()
             data = res.json()
-            postings = data.get("jobPostings", [])
+            if (not isinstance(data, dict) or "total" not in data
+                    or not isinstance(data.get("jobPostings"), list)):
+                raise ValueError("Workday response missing total/jobPostings[]")
+            total = int(data["total"])
+            postings = data["jobPostings"]
+            fetched += len(postings)
             for job in postings:
-                title = job.get("title", "")
-                location = job.get("locationsText", "")
+                if not isinstance(job, dict):
+                    raise ValueError("Workday jobPostings[] contained a non-object entry")
+                title = job.get("title")
+                location = job.get("locationsText")
+                path = job.get("externalPath")
+                if (not isinstance(title, str) or not title.strip()
+                        or not isinstance(location, str) or not isinstance(path, str) or not path):
+                    raise ValueError("Workday posting missing title/locationsText/externalPath")
+                if path in seen_paths:
+                    raise RuntimeError("Workday pagination repeated a posting; refusing an incomplete read")
+                seen_paths.add(path)
                 # Multi-location postings collapse to "N Locations" — that text
                 # can't match a city, so matches_criteria would drop an
                 # India-eligible role. With include_multi_location set, include
@@ -374,15 +711,17 @@ class ATSHunter:
                         continue
                 elif not self.matches_criteria(title, location, keywords):
                     continue
-                path = job.get("externalPath", "")
                 # Stable dedup key: trailing requisition id (e.g. JR1988855),
                 # falling back to the full path so IDs never come from position.
                 job_id = path.rsplit("_", 1)[-1] if "_" in path else path
+                if not job_id:
+                    raise ValueError("Workday posting has no stable identifier")
                 job_url = f"{base}/en-US/{site}{path}"
                 matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
-            total = data.get("total", 0)
             if (page + 1) * limit >= total or not postings:
                 break
+        if total is not None and fetched < total:
+            raise RuntimeError(f"Workday results truncated ({fetched}/{total})")
         return matches
 
     def hunt_amazon(self, query="intern", location="India", categories=None, keywords=None):
@@ -398,52 +737,371 @@ class ATSHunter:
         for c in categories or []:
             url += f"&category[]={c}"
         # A browser-like UA keeps the JSON endpoint from 403-ing (plan §4.2).
-        res = requests.get(url, timeout=15, headers={
+        res = self._get(url, timeout=15, headers={
             **API_HEADERS,
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         })
         res.raise_for_status()
-        jobs = res.json().get("jobs", [])
+        payload = res.json()
+        if (not isinstance(payload, dict) or "hits" not in payload
+                or not isinstance(payload.get("jobs"), list)):
+            raise ValueError("Amazon response missing hits/jobs[]")
+        total = int(payload["hits"])
+        jobs = payload["jobs"]
+        if len(jobs) < total:
+            raise RuntimeError(f"Amazon results truncated ({len(jobs)}/{total})")
         matches = []
         for job in jobs:
-            title = job.get("title", "")
-            location_text = job.get("normalized_location") or job.get("location", "")
+            if not isinstance(job, dict):
+                raise ValueError("Amazon jobs[] contained a non-object entry")
+            job_id = str(job.get("id_icims") or job.get("id") or "")
+            title = job.get("title")
+            location_text = job.get("normalized_location") or job.get("location")
+            job_path = job.get("job_path")
+            if (not job_id or not isinstance(title, str) or not title.strip()
+                    or not isinstance(location_text, str)
+                    or not isinstance(job_path, str) or not job_path):
+                raise ValueError("Amazon job missing id/title/location/job_path")
             if self.matches_criteria(title, location_text, keywords):
-                job_id = str(job.get("id_icims") or job.get("id", ""))
-                job_url = f"https://www.amazon.jobs{job.get('job_path', '')}"
+                job_url = f"https://www.amazon.jobs{job_path}"
                 matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
         return matches
 
-    def hunt_microsoft(self, query="intern", location="India", keywords=None):
-        """Hunter for the Microsoft careers search API. Server-side `lc` filter
-        narrows to a country; matches_criteria re-checks title/location.
-        Paginates up to the request cap.
+    def hunt_atlassian(self, location="India", categories=None, keywords=None):
+        """Read Atlassian's public careers listings feed directly.
 
-        NOTE: as of the last verification the gcsservices host serves an
-        *.azureedge.net cert (hostname mismatch) and gates the search API
-        behind a bearer token, so no MS entry ships in config.yaml yet. The
-        adapter is kept ready for when the endpoint is reachable again — until
-        then Phase 2 failure tracking would flag it, which is why it's
-        unconfigured rather than special-cased."""
+        The all-jobs page's React widget can fail before it renders any cards,
+        while this one-request JSON feed remains the page's source of truth.
+        Category filters cover Interns/Graduates whose titles do not always
+        contain a global keyword; exclude-keywords still apply.
+        """
+        url = "https://www.atlassian.com/endpoint/careers/listings"
+        res = self._get(url, timeout=20, headers={**API_HEADERS, "Accept": "application/json"})
+        res.raise_for_status()
+        jobs = res.json()
+        if not isinstance(jobs, list):
+            raise ValueError("Atlassian response is not a listings array")
+        wanted_categories = {value.casefold() for value in (categories or [])}
         matches = []
-        for page in range(1, 5):  # pages 1-4, ≤ 4 requests (plan §3)
-            url = (f"https://gcsservices.careers.microsoft.com/search/api/v1/search"
-                   f"?q={query}&lc={location}&l=en_us&pg={page}&pgSz=20")
-            res = requests.get(url, timeout=15, headers={**API_HEADERS, "Accept": "application/json"})
+        seen_ids = {}
+        for job in jobs:
+            if not isinstance(job, dict):
+                raise ValueError("Atlassian listings contained a non-object entry")
+            portal_id = str(job.get("portalId") or "")
+            posting_id = str(job.get("id") or "")
+            title = job.get("title")
+            locations = job.get("locations")
+            category = job.get("category")
+            job_url = job.get("applyUrl")
+            if (not portal_id or not posting_id or not isinstance(title, str) or not title.strip()
+                    or not isinstance(locations, list) or any(not isinstance(x, str) for x in locations)
+                    or not isinstance(category, str) or not isinstance(job_url, str) or not job_url):
+                raise ValueError("Atlassian listing missing portalId/id/title/locations/category/applyUrl")
+            job_id = f"{portal_id}:{posting_id}"
+            signature = (title, tuple(locations), category, job_url)
+            if job_id in seen_ids:
+                if seen_ids[job_id] != signature:
+                    raise ValueError("Atlassian listings reused a stable id for conflicting jobs")
+                continue
+            seen_ids[job_id] = signature
+            location_text = ", ".join(value for value in locations if value)
+            category_match = not wanted_categories or category.casefold() in wanted_categories
+            location_match = not location or location.casefold() in location_text.casefold()
+            title_match = (self.title_matches(title, keywords=[])
+                           if wanted_categories else self.title_matches(title, keywords))
+            if category_match and location_match and title_match:
+                matches.append({"id": job_id, "title": title, "location": location_text,
+                                "url": job_url})
+        return matches
+
+    def hunt_eightfold(self, base_url, domain, query="intern", location="India",
+                       seniority=None, keywords=None):
+        """Hunter for public Eightfold/PCSX careers search endpoints.
+
+        Used by Microsoft and Qualcomm.  The endpoint exposes an explicit
+        count, which lets us distinguish a real zero from a malformed response
+        and fail loudly if the four-request safety cap would truncate results.
+        """
+        matches = []
+        start = 0
+        total = None
+        seen_ids = set()
+        for _ in range(4):
+            params = {"domain": domain, "query": query, "location": location, "start": start}
+            if seniority:
+                params["filter_seniority"] = seniority
+            res = self._get(
+                f"{base_url.rstrip('/')}/api/pcsx/search",
+                params=params,
+                timeout=15,
+                headers={**API_HEADERS, "Accept": "application/json"},
+            )
             res.raise_for_status()
-            result = res.json().get("operationResult", {}).get("result", {})
-            jobs = result.get("jobs", [])
-            for job in jobs:
-                title = job.get("title", "")
-                locs = job.get("properties", {}).get("locations") or []
-                location_text = ", ".join(locs) if isinstance(locs, list) else str(locs)
+            payload = res.json()
+            data = payload.get("data") if isinstance(payload, dict) else None
+            if not isinstance(data, dict) or not isinstance(data.get("positions"), list) or "count" not in data:
+                raise ValueError("Eightfold response missing data.count/data.positions[]")
+            positions = data["positions"]
+            total = int(data["count"])
+            for job in positions:
+                if not isinstance(job, dict):
+                    raise ValueError("Eightfold positions[] contained a non-object entry")
+                job_id = str(job.get("id") or job.get("displayJobId") or "")
+                position_url = job.get("positionUrl")
+                title = job.get("name")
+                if (not job_id or not isinstance(position_url, str) or not position_url
+                        or not isinstance(title, str) or not title.strip()):
+                    raise ValueError("Eightfold position missing id/positionUrl/name")
+                if job_id in seen_ids:
+                    raise RuntimeError("Eightfold pagination repeated a position; refusing an incomplete read")
+                seen_ids.add(job_id)
+                locs = job.get("locations") or job.get("standardizedLocations") or []
+                if not isinstance(locs, list):
+                    locs = [locs]
+                location_parts = []
+                for loc in locs:
+                    if isinstance(loc, dict):
+                        value = loc.get("name") or loc.get("displayName") or loc.get("location")
+                    else:
+                        value = str(loc)
+                    if value:
+                        location_parts.append(value)
+                location_text = ", ".join(location_parts)
+                if not location_text:
+                    raise ValueError("Eightfold position missing recognized location data")
                 if self.matches_criteria(title, location_text, keywords):
-                    job_id = str(job.get("jobId", ""))
-                    job_url = f"https://jobs.careers.microsoft.com/global/en/job/{job_id}"
+                    job_url = urljoin(base_url.rstrip("/") + "/", position_url)
                     matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
-            total = result.get("totalJobs", 0)
-            if page * 20 >= total or not jobs:
+            start += len(positions)
+            if total == 0 or start >= total or not positions:
                 break
+        if total is not None and start < total:
+            raise RuntimeError(f"Eightfold results truncated ({start}/{total})")
+        return matches
+
+    def hunt_microsoft(self, query="intern", location="India", keywords=None):
+        """Backward-compatible Microsoft alias for the Eightfold adapter."""
+        return self.hunt_eightfold(
+            "https://apply.careers.microsoft.com",
+            "microsoft.com",
+            query=query,
+            location=location,
+            keywords=keywords,
+        )
+
+    def hunt_google(self, query="intern", location="India", keywords=None):
+        """Parse Google's server-rendered official careers result cards."""
+        base_url = "https://www.google.com/about/careers/applications/jobs/results/"
+        next_url = base_url
+        params = {"q": query, "location": location}
+        matches = []
+        fetched_pages = 0
+        while next_url and fetched_pages < 4:
+            res = self._get(next_url, params=params if fetched_pages == 0 else None,
+                               timeout=15, headers=API_HEADERS)
+            res.raise_for_status()
+            soup = BeautifulSoup(res.text, "html.parser")
+            cards = soup.select("li.lLd3Je")
+            page_text = soup.get_text(" ", strip=True).lower()
+            explicit_zero = bool(re.search(r"\b0\s+jobs?\s+matched\b", page_text))
+            if not cards:
+                if explicit_zero:
+                    return matches
+                raise ValueError("Google Careers page has neither job cards nor an explicit zero-result marker")
+            parsed = 0
+            for card in cards:
+                title_el = card.select_one("h3.QJPWVe")
+                link_el = card.select_one("a.WpHeLc[href]")
+                if not title_el or not link_el:
+                    raise ValueError("Google Careers card missing title/link structure")
+                title = title_el.get_text(" ", strip=True)
+                location_el = card.select_one(".r0wTof")
+                if not title or not location_el:
+                    raise ValueError("Google Careers card missing title/location")
+                location_text = location_el.get_text(" ", strip=True)
+                if not location_text:
+                    raise ValueError("Google Careers card has an empty location")
+                job_url = urljoin(base_url, link_el.get("href", ""))
+                id_match = re.search(r"/results/(\d+)", job_url)
+                if not id_match:
+                    raise ValueError("Google Careers card missing stable result id")
+                parsed += 1
+                if self.matches_criteria(title, location_text, keywords):
+                    matches.append({"id": id_match.group(1), "title": title,
+                                    "location": location_text, "url": job_url})
+            if parsed == 0:
+                raise ValueError("Google Careers cards found but none had the expected structure")
+            fetched_pages += 1
+            next_link = soup.select_one("a[aria-label='Go to next page'][href]")
+            next_url = urljoin(base_url, next_link["href"]) if next_link else None
+            params = None
+        if next_url:
+            raise RuntimeError("Google Careers results truncated after 4 pages")
+        return matches
+
+    def hunt_intuit(self, query="interns new college grads", location="India", keywords=None):
+        """Parse Intuit's official TalentBrew search with an India geo filter."""
+        base_url = "https://jobs.intuit.com/search-jobs"
+        params = {
+            "k": query, "l": location, "lat": "22.0", "lon": "79.0",
+            "lt": "2", "lp": "1269750", "orgIds": "27595",
+        }
+        next_url = base_url
+        matches = []
+        page = 0
+        total = None
+        parsed_total = 0
+        seen_job_ids = set()
+        while next_url and page < 4:
+            res = self._get(next_url, params=params if page == 0 else None,
+                               timeout=15, headers=API_HEADERS)
+            res.raise_for_status()
+            soup = BeautifulSoup(res.text, "html.parser")
+            results = soup.select_one("section#search-results")
+            if not results or results.get("data-total-results") is None:
+                raise ValueError("Intuit search page missing recognized results metadata")
+            total = int(results["data-total-results"])
+            cards = results.select("ul.search-list li a.sr-item[href]")
+            if total == 0:
+                return []
+            if not cards:
+                raise ValueError("Intuit reported results but exposed no job cards")
+            for card in cards:
+                title_el = card.select_one("h2")
+                title = (card.get("data-title") or
+                         (title_el.get_text(" ", strip=True) if title_el else ""))
+                location_el = card.select_one("span.job-location")
+                location_text = location_el.get_text(" ", strip=True) if location_el else ""
+                job_url = urljoin(base_url, card.get("href", ""))
+                job_id = job_url.rstrip("/").rsplit("/", 1)[-1]
+                if not title or not job_id.isdigit():
+                    raise ValueError("Intuit job card missing title/stable id")
+                if job_id in seen_job_ids:
+                    raise RuntimeError("Intuit pagination repeated a job; refusing an incomplete read")
+                seen_job_ids.add(job_id)
+                parsed_total += 1
+                # The request is already country-filtered. TalentBrew sometimes
+                # collapses an eligible card to "Multiple Locations".
+                criteria_match = (self.title_matches(title, keywords)
+                                  if location_text.lower() == "multiple locations"
+                                  else self.matches_criteria(title, location_text, keywords))
+                if criteria_match:
+                    matches.append({"id": job_id, "title": title,
+                                    "location": location_text, "url": job_url})
+            page += 1
+            next_link = results.select_one("nav.pagination a.next[href]:not(.disabled)")
+            next_url = urljoin(base_url, next_link["href"]) if next_link else None
+            params = None
+        if total is not None and parsed_total < total:
+            raise RuntimeError(f"Intuit results truncated ({parsed_total}/{total})")
+        return matches
+
+    def hunt_goldman(self, search="summer analyst", location="India", keywords=None):
+        """Query Goldman Sachs' official Higher campus GraphQL search."""
+        endpoint = "https://api-higher.gs.com/gateway/api/v1/graphql"
+        query = """query GetCampusRoles($searchQueryInput: RoleSearchQueryInput!) {
+          roleSearch(searchQueryInput: $searchQueryInput) {
+            totalCount
+            items { roleId corporateTitle jobTitle jobFunction
+              locations { primary state country city }
+              status division externalSource { sourceId }
+            }
+          }
+        }"""
+        matches = []
+        fetched = 0
+        total = None
+        seen_role_ids = set()
+        for page in range(4):
+            variables = {"searchQueryInput": {
+                "page": {"pageSize": 20, "pageNumber": page},
+                "sort": {"sortStrategy": "RELEVANCE", "sortOrder": "DESC"},
+                "filters": [{"filterCategoryType": "LOCATION",
+                             "filters": [{"filter": location, "subFilters": []}]}],
+                "experiences": ["CAMPUS"],
+                "searchTerm": search,
+            }}
+            res = self._post(
+                endpoint,
+                json={"operationName": "GetCampusRoles", "query": query, "variables": variables},
+                timeout=15,
+                headers={**API_HEADERS, "Content-Type": "application/json",
+                         "Accept": "application/json", "x-higher-request-id": str(uuid.uuid4())},
+            )
+            res.raise_for_status()
+            payload = res.json()
+            if isinstance(payload, dict) and payload.get("errors"):
+                raise ValueError(f"Goldman Higher GraphQL error: {payload['errors'][0].get('message', 'unknown')}")
+            result = payload.get("data", {}).get("roleSearch") if isinstance(payload, dict) else None
+            if not isinstance(result, dict) or "totalCount" not in result or not isinstance(result.get("items"), list):
+                raise ValueError("Goldman Higher response missing roleSearch totalCount/items[]")
+            total = int(result["totalCount"])
+            items = result["items"]
+            fetched += len(items)
+            for job in items:
+                if not isinstance(job, dict):
+                    raise ValueError("Goldman Higher items[] contained a non-object entry")
+                job_id = str(job.get("roleId") or "")
+                title = job.get("jobTitle")
+                locations = job.get("locations") or []
+                if (not job_id or not isinstance(title, str) or not title.strip()
+                        or not isinstance(locations, list)):
+                    raise ValueError("Goldman Higher role missing roleId/jobTitle/locations[]")
+                if job_id in seen_role_ids:
+                    raise RuntimeError("Goldman Higher pagination repeated a role; refusing an incomplete read")
+                seen_role_ids.add(job_id)
+                location_text = "; ".join(
+                    ", ".join(x for x in [loc.get("city"), loc.get("state"), loc.get("country")] if x)
+                    for loc in locations if isinstance(loc, dict)
+                )
+                if not location_text:
+                    raise ValueError("Goldman Higher role missing recognized location data")
+                if self.matches_criteria(title, location_text, keywords):
+                    matches.append({"id": job_id, "title": title, "location": location_text,
+                                    "url": f"https://higher.gs.com/roles/{job_id}"})
+            if total == 0 or fetched >= total or not items:
+                break
+        if total is not None and fetched < total:
+            raise RuntimeError(f"Goldman Higher results truncated ({fetched}/{total})")
+        return matches
+
+    def hunt_deshaw(self, keywords=None):
+        """Parse individual public internship cards from D. E. Shaw.
+
+        This source is intentionally worldwide; D. E. Shaw India internships
+        are campus-placement based and are covered separately by a program-page
+        monitor.
+        """
+        base_url = "https://www.deshaw.com/careers/internships"
+        res = self._get(base_url, timeout=20, headers=API_HEADERS)
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, "html.parser")
+        anchors = soup.select("a.parent-arrow-long[href*='/careers/']")
+        if not anchors:
+            text = soup.get_text(" ", strip=True).lower()
+            if "no internships" in text or "no internship opportunities" in text:
+                return []
+            raise ValueError("D. E. Shaw internships page missing recognized job cards")
+        matches = []
+        parsed = 0
+        for anchor in anchors:
+            raw = anchor.get_text(" ", strip=True)
+            title = re.sub(r"^icon\s*", "", raw, flags=re.IGNORECASE).split(":", 1)[0].strip()
+            if not title:
+                raise ValueError("D. E. Shaw internship card missing title")
+            job_url = urljoin(base_url, anchor.get("href", ""))
+            id_match = re.search(r"-(\d+)(?:[/?#]|$)", job_url)
+            if not id_match:
+                raise ValueError("D. E. Shaw internship card missing stable id")
+            parsed += 1
+            if not self.title_matches(title, keywords):
+                continue
+            location_match = re.search(r"\(([^)]+)\)", title)
+            location_text = location_match.group(1) if location_match else "Worldwide"
+            matches.append({"id": id_match.group(1), "title": title,
+                            "location": location_text, "url": job_url})
+        # Cards existed but only false positives such as "Internal ..." is a
+        # valid zero after exact word-boundary title filtering.
         return matches
 
 def page_text_failure(text):
@@ -455,41 +1113,162 @@ def page_text_failure(text):
         return "empty page content — selector matched nothing or the page blocked us"
     if len(stripped) < MIN_PAGE_TEXT_CHARS:
         return f"suspicious page ({len(stripped)} chars) — possible CAPTCHA or error page"
+    lowered = stripped.casefold()
+    blocked_markers = (
+        "access denied", "verify you are human", "captcha", "just a moment",
+        "service unavailable", "internal server error", "error 404", "page not found",
+    )
+    marker = next((value for value in blocked_markers if value in lowered), None)
+    if marker:
+        return f"page contains error/block marker: {marker}"
     return None
 
 class CustomWebHunter:
     def __init__(self, config):
         self.keywords = [k.lower() for k in config.get("keywords", [])]
         self.locations = [l.lower() for l in config.get("locations", [])]
+        self.criteria = ATSHunter(config)
+        self._playwright = None
+        self._browser = None
+
+    def _ensure_browser(self):
+        """Lazily launch one Chromium process and reuse it for this run."""
+        if self._browser is not None:
+            return self._browser
+        self._playwright = sync_playwright().start()
+        try:
+            self._browser = self._playwright.chromium.launch(headless=True)
+        except Exception:
+            self._playwright.stop()
+            self._playwright = None
+            raise
+        return self._browser
+
+    def close(self):
+        """Close the shared browser lifecycle; safe to call repeatedly."""
+        browser, playwright = self._browser, self._playwright
+        self._browser = None
+        self._playwright = None
+        try:
+            if browser is not None:
+                browser.close()
+        finally:
+            if playwright is not None:
+                playwright.stop()
+
+    def parse_structured_jobs(self, content, page_config):
+        """Parse a rendered job board using selectors from custom-page config."""
+        url = page_config["url"]
+        job_selector = page_config["job_selector"]
+        location_filter = page_config.get("location_filter", True)
+        soup = BeautifulSoup(content, "html.parser")
+        cards = soup.select(job_selector)
+        body_text = soup.body.get_text(" ", strip=True) if soup.body else ""
+        zero_markers = page_config.get("zero_result_text") or []
+        if isinstance(zero_markers, str):
+            zero_markers = [zero_markers]
+        recognized_zero = any(marker.lower() in body_text.lower() for marker in zero_markers)
+        if not cards:
+            if recognized_zero:
+                return {"jobs": []}
+            return {"failed": f"job selector matched nothing: {job_selector}"}
+
+        jobs = []
+        seen_urls = set()
+        for card in cards:
+            link_selector = page_config.get("link_selector")
+            if link_selector:
+                link_el = card.select_one(link_selector)
+            elif card.name == "a" and card.get("href"):
+                link_el = card
+            else:
+                link_el = card.select_one("a[href]")
+            title_selector = page_config.get("title_selector")
+            title_el = card.select_one(title_selector) if title_selector else None
+            location_selector = page_config.get("job_location_selector")
+            location_el = card.select_one(location_selector) if location_selector else None
+            if title_selector and not title_el:
+                raise ValueError("structured custom-page card missing configured title selector")
+            if location_selector and not location_el:
+                raise ValueError("structured custom-page card missing configured location selector")
+            title = ""
+            if title_el:
+                title = title_el.get_text(" ", strip=True)
+            elif link_el:
+                title = link_el.get("data-title") or link_el.get_text(" ", strip=True)
+            location_text = location_el.get_text(" ", strip=True) if location_el else ""
+            if not link_el or not title:
+                raise ValueError("structured custom-page card missing title/link")
+            href = link_el.get("href")
+            if not isinstance(href, str) or not href.strip():
+                raise ValueError("structured custom-page card has no link href")
+            job_url = urljoin(url, href)
+            if not job_url or job_url in seen_urls:
+                continue
+            seen_urls.add(job_url)
+            id_pattern = page_config.get("id_regex")
+            if id_pattern:
+                id_match = re.search(id_pattern, job_url)
+                if not id_match:
+                    raise ValueError("structured custom-page job URL missing configured id")
+                job_id = id_match.group(1)
+            else:
+                job_id = job_url
+            if not job_id:
+                raise ValueError("structured custom-page job has an empty stable id")
+            criteria_match = (self.criteria.matches_criteria(title, location_text)
+                              if location_filter else self.criteria.title_matches(title))
+            if criteria_match:
+                jobs.append({"id": job_id, "title": title,
+                             "location": location_text or "India (source-filtered)",
+                             "url": job_url})
+        return {"jobs": jobs}
 
     def hunt(self, page_config):
         url = page_config["url"]
         wait_for = page_config.get("wait_for_selector")
         css_selector = page_config.get("css_selector")
+        job_selector = page_config.get("job_selector")
         keyword_filter = page_config.get("keyword_filter", False)
         location_filter = page_config.get("location_filter", True) # Default to true for safety
-        
+        navigation_timeout = page_config.get("navigation_timeout", 30)
+        selector_timeout = page_config.get("selector_timeout", 10)
+        render_delay = page_config.get("render_delay", 3)
+        wait_timed_out = False
+        page = None
+
         try:
-            with sync_playwright() as p:
-                # Use Chromium for JS rendering
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page(
-                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )
-                page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                
-                if wait_for:
-                    try:
-                        page.wait_for_selector(wait_for, timeout=10000)
-                    except:
-                        print(f"Timeout waiting for selector {wait_for} on {url}")
-                
-                # Give JS frameworks time to render dynamic content
-                time.sleep(3)
-                
-                content = page.content()
-                browser.close()
-                
+            browser = self._ensure_browser()
+            page = browser.new_page(
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            response = page.goto(
+                url, wait_until="domcontentloaded",
+                timeout=int(navigation_timeout * 1000))
+            if response is None:
+                raise RuntimeError("navigation returned no HTTP response")
+            if not response.ok:
+                raise RuntimeError(f"page returned HTTP {response.status}")
+
+            if wait_for:
+                try:
+                    page.wait_for_selector(wait_for, timeout=int(selector_timeout * 1000))
+                except Exception:
+                    wait_timed_out = True
+                    print(f"Timeout waiting for selector {wait_for} on {url}")
+
+            page.wait_for_timeout(int(render_delay * 1000))
+            content = page.content()
+
+            # Structured Playwright source: return individual jobs instead of
+            # a generic page hash. This keeps JS-only boards (Atlassian) in the
+            # four-hour browser path while preserving normal job-level dedup.
+            if job_selector:
+                return self.parse_structured_jobs(content, page_config)
+
+            if wait_timed_out:
+                return {"failed": f"timeout waiting for configured selector: {wait_for}"}
+
             soup = BeautifulSoup(content, "html.parser")
             
             if css_selector:
@@ -534,6 +1313,289 @@ class CustomWebHunter:
             }
         except Exception as e:
             return {"failed": f"page load crashed: {e}"}
+        finally:
+            if page is not None:
+                try:
+                    page.close()
+                except Exception:
+                    pass
+
+
+def company_filters_from_argv(argv):
+    """Return case-folded `--company NAME` filters (repeatable)."""
+    filters = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--company":
+            if i + 1 >= len(argv) or argv[i + 1].startswith("--"):
+                raise ValueError("--company requires a source name")
+            filters.append(argv[i + 1].casefold())
+            i += 2
+            continue
+        if arg.startswith("--company="):
+            value = arg.split("=", 1)[1].strip()
+            if not value:
+                raise ValueError("--company requires a source name")
+            filters.append(value.casefold())
+        i += 1
+    return filters
+
+
+def option_value_from_argv(argv, option):
+    """Read one ``--option value`` or ``--option=value`` occurrence."""
+    values = []
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == option:
+            if index + 1 >= len(argv) or argv[index + 1].startswith("--"):
+                raise ValueError(f"{option} requires a value")
+            values.append(argv[index + 1])
+            index += 2
+            continue
+        if arg.startswith(option + "="):
+            value = arg.split("=", 1)[1]
+            if not value:
+                raise ValueError(f"{option} requires a value")
+            values.append(value)
+        index += 1
+    if len(values) > 1:
+        raise ValueError(f"{option} may only be supplied once")
+    return values[0] if values else None
+
+
+def shard_settings_from_argv(argv):
+    """Return validated ``(index, count, state_path)`` shard settings."""
+    try:
+        count = int(option_value_from_argv(argv, "--shard-count") or "1")
+        index = int(option_value_from_argv(argv, "--shard-index") or "0")
+    except ValueError as exc:
+        if "requires" in str(exc) or "supplied" in str(exc):
+            raise
+        raise ValueError("--shard-count and --shard-index must be integers") from exc
+    if count < 1:
+        raise ValueError("--shard-count must be at least 1")
+    if index < 0 or index >= count:
+        raise ValueError("--shard-index must be between 0 and shard-count - 1")
+    explicit_state = option_value_from_argv(argv, "--state-file")
+    if explicit_state:
+        if os.path.isabs(explicit_state) or os.path.dirname(explicit_state):
+            raise ValueError("--state-file must be a filename in the working directory")
+        state_path = explicit_state
+    elif count > 1:
+        state_path = f"state.shard-{index}-of-{count}.json"
+    else:
+        state_path = STATE_FILE
+    return index, count, state_path
+
+
+def source_shard(entry, shard_count):
+    """Assign related sources to the same deterministic shard."""
+    key = (
+        entry.get("fallback_for")
+        or entry.get("supplement_for")
+        or entry.get("name", "")
+    ).casefold()
+    digest = hashlib.sha256(key.encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") % shard_count
+
+
+def source_in_shard(entry, shard_index, shard_count):
+    return shard_count == 1 or source_shard(entry, shard_count) == shard_index
+
+
+def source_selected(entry, filters):
+    if not filters:
+        return True
+    names = [entry.get("name", ""), entry.get("fallback_for", ""), entry.get("supplement_for", "")]
+    names.extend(entry.get("aliases") or [])
+    folded = {name.casefold() for name in names if name}
+    return any(value in folded for value in filters)
+
+
+def resolve_company_filters(config, filters):
+    """Validate filters and expand aliases to their canonical source names."""
+    if not filters:
+        return []
+    entries = list(config.get("ats_companies") or []) + list(config.get("custom_pages") or [])
+    expanded = set(filters)
+    unknown = []
+    for value in filters:
+        hits = []
+        for entry in entries:
+            names = [entry.get("name", ""), *(entry.get("aliases") or [])]
+            if value in {name.casefold() for name in names if name}:
+                hits.append(entry)
+        if not hits:
+            unknown.append(value)
+            continue
+        expanded.update(entry["name"].casefold() for entry in hits)
+    if unknown:
+        raise ValueError("unknown --company source(s): " + ", ".join(sorted(unknown)))
+    return sorted(expanded)
+
+
+# Fields an adapter reads via comp[...] (no default) — a missing one only
+# surfaces at hunt time as a per-source ❌. `--validate` catches it up front.
+REQUIRED_ATS_FIELDS = {
+    "ashby": ("slug",), "lever": ("slug",), "greenhouse": ("slug",),
+    "smartrecruiters": ("company_id",),
+    "workable": ("account",),
+    "workday": ("tenant", "site"),
+    "eightfold": ("base_url", "domain"),
+    "oracle_hcm": ("site_number", "host"),
+}
+KNOWN_ATS_TYPES = set(REQUIRED_ATS_FIELDS) | {
+    "amazon", "atlassian", "google", "intuit", "goldman_higher", "deshaw", "microsoft",
+}
+
+
+def validate_config(config):
+    """Preflight lint for config.yaml. Returns a list of problem strings."""
+    problems = []
+    if not isinstance(config, dict):
+        return ["config.yaml top level must be a mapping"]
+    for key in ("keywords", "exclude_keywords", "locations"):
+        value = config.get(key, [])
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            problems.append(f"{key} must be a list of strings")
+    telegram = config.get("telegram", {})
+    if not isinstance(telegram, dict):
+        problems.append("telegram must be a mapping")
+
+    ats_entries = config.get("ats_companies") or []
+    custom_entries = config.get("custom_pages") or []
+    if not isinstance(ats_entries, list):
+        problems.append("ats_companies must be a list")
+        ats_entries = []
+    if not isinstance(custom_entries, list):
+        problems.append("custom_pages must be a list")
+        custom_entries = []
+
+    seen_names = set()
+    canonical_names = set()
+    aliases = {}
+    relationships = []
+    for entry in ats_entries:
+        if not isinstance(entry, dict):
+            problems.append(f"ats_companies entry must be a mapping: {entry!r}")
+            continue
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            problems.append(f"ats_companies entry missing name: {entry}")
+            continue
+        if name.casefold() in seen_names:
+            problems.append(f"duplicate source name: {name}")
+        seen_names.add(name.casefold())
+        canonical_names.add(name.casefold())
+        ats = entry.get("ats")
+        if ats not in KNOWN_ATS_TYPES:
+            problems.append(f"{name}: unknown ats type '{ats}'")
+            continue
+        for field in REQUIRED_ATS_FIELDS.get(ats, ()):
+            if not entry.get(field):
+                problems.append(f"{name}: ats '{ats}' requires '{field}'")
+        if ats == "eightfold" and entry.get("base_url") \
+                and not re.match(r"^https?://", str(entry["base_url"])):
+            problems.append(f"{name}: base_url must start with http:// or https://")
+        if "keywords" in entry and (
+                not isinstance(entry["keywords"], list)
+                or any(not isinstance(item, str) for item in entry["keywords"])):
+            problems.append(f"{name}: keywords must be a list of strings")
+        if "categories" in entry and (
+                not isinstance(entry["categories"], list)
+                or any(not isinstance(item, str) or not item for item in entry["categories"])):
+            problems.append(f"{name}: categories must be a list of non-empty strings")
+        if "queries" in entry and (
+                not isinstance(entry["queries"], list) or not entry["queries"]
+                or any(not isinstance(item, str) or not item for item in entry["queries"])):
+            problems.append(f"{name}: queries must be a non-empty list of strings")
+        if "max_pages" in entry:
+            value = entry["max_pages"]
+            if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 4:
+                problems.append(f"{name}: max_pages must be an integer from 1 to 4")
+        entry_aliases = entry.get("aliases") or []
+        if not isinstance(entry_aliases, list) or any(not isinstance(a, str) or not a for a in entry_aliases):
+            problems.append(f"{name}: aliases must be a list of non-empty strings")
+        else:
+            for alias in entry_aliases:
+                owner = aliases.setdefault(alias.casefold(), name)
+                if owner != name:
+                    problems.append(f"duplicate alias '{alias}' used by {owner} and {name}")
+
+    for entry in custom_entries:
+        if not isinstance(entry, dict):
+            problems.append(f"custom_pages entry must be a mapping: {entry!r}")
+            continue
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            problems.append(f"custom_pages entry missing name: {entry}")
+            continue
+        if name.casefold() in seen_names:
+            problems.append(f"duplicate source name: {name}")
+        seen_names.add(name.casefold())
+        canonical_names.add(name.casefold())
+        url = entry.get("url")
+        if not isinstance(url, str) or not re.match(r"^https?://", url):
+            problems.append(f"{name}: custom page missing 'url'")
+        for field in ("keyword_filter", "location_filter"):
+            if field in entry and not isinstance(entry[field], bool):
+                problems.append(f"{name}: {field} must be true or false")
+        for field, minimum, maximum in (
+                ("navigation_timeout", 1, 60),
+                ("selector_timeout", 1, 30),
+                ("render_delay", 0, 15)):
+            if field in entry:
+                value = entry[field]
+                if (not isinstance(value, (int, float)) or isinstance(value, bool)
+                        or not minimum <= value <= maximum):
+                    problems.append(
+                        f"{name}: {field} must be a number from {minimum} to {maximum}")
+        for field in ("job_selector", "title_selector", "link_selector",
+                      "job_location_selector", "wait_for_selector", "css_selector"):
+            if field in entry and (not isinstance(entry[field], str) or not entry[field]):
+                problems.append(f"{name}: {field} must be a non-empty string")
+        if any(field in entry for field in ("title_selector", "link_selector",
+                                             "job_location_selector", "id_regex")) \
+                and not entry.get("job_selector"):
+            problems.append(f"{name}: structured job fields require job_selector")
+        if entry.get("id_regex"):
+            try:
+                compiled = re.compile(entry["id_regex"])
+                if compiled.groups < 1:
+                    problems.append(f"{name}: id_regex must contain a capture group")
+            except (re.error, TypeError) as e:
+                problems.append(f"{name}: invalid id_regex: {e}")
+        zero_markers = entry.get("zero_result_text")
+        if zero_markers is not None:
+            if isinstance(zero_markers, str):
+                zero_markers = [zero_markers]
+            if not isinstance(zero_markers, list) or any(not isinstance(x, str) or not x for x in zero_markers):
+                problems.append(f"{name}: zero_result_text must be a string or list of non-empty strings")
+        for relation in ("fallback_for", "supplement_for"):
+            if entry.get(relation):
+                relationships.append((name, relation, entry[relation]))
+        if entry.get("fallback_for") and entry.get("supplement_for"):
+            problems.append(f"{name}: cannot set both fallback_for and supplement_for")
+        entry_aliases = entry.get("aliases") or []
+        if not isinstance(entry_aliases, list) or any(not isinstance(a, str) or not a for a in entry_aliases):
+            problems.append(f"{name}: aliases must be a list of non-empty strings")
+        else:
+            for alias in entry_aliases:
+                owner = aliases.setdefault(alias.casefold(), name)
+                if owner != name:
+                    problems.append(f"duplicate alias '{alias}' used by {owner} and {name}")
+
+    all_identifiers = canonical_names | set(aliases)
+    for alias, owner in aliases.items():
+        if alias in canonical_names and alias != owner.casefold():
+            problems.append(f"alias '{alias}' for {owner} conflicts with a source name")
+    for name, relation, target in relationships:
+        if not isinstance(target, str) or target.casefold() not in all_identifiers:
+            problems.append(f"{name}: {relation} references unknown source '{target}'")
+    return problems
+
 
 def send_heartbeat(config, state_manager, notifier):
     """Read-only status report. Does NOT hunt and does NOT mutate state —
@@ -556,28 +1618,65 @@ def send_heartbeat(config, state_manager, notifier):
             heartbeat.append(f"⚠️ {html.escape(name)}: failing ({streak} consecutive runs)")
     else:
         heartbeat.append("All sources healthy ✅")
-    notifier.send("\n".join(heartbeat))
+    if not notifier.send("\n".join(heartbeat)):
+        raise RuntimeError("heartbeat could not be delivered to Telegram")
 
 def main():
     test_mode = "--test" in sys.argv
     seed_mode = "--seed" in sys.argv
     hunt_ats = "--pages-only" not in sys.argv
     hunt_pages = "--ats-only" not in sys.argv
+    try:
+        company_filters = company_filters_from_argv(sys.argv[1:])
+        shard_index, shard_count, state_path = shard_settings_from_argv(sys.argv[1:])
+    except ValueError as e:
+        raise SystemExit(str(e))
 
     if not os.path.exists("config.yaml"):
-        print("config.yaml not found! Please create one based on the template.")
-        return
+        raise SystemExit("config.yaml not found! Please create one based on the template.")
 
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
 
-    state_manager = StateManager()
+    problems = validate_config(config)
+    if "--validate" in sys.argv:
+        for problem in problems:
+            print(f"❌ {problem}")
+        if not problems:
+            print("✅ config.yaml is valid")
+        raise SystemExit(1 if problems else 0)
+    if problems:
+        details = "\n".join(f"❌ {problem}" for problem in problems)
+        raise SystemExit(f"config.yaml validation failed:\n{details}")
+
+    try:
+        company_filters = resolve_company_filters(config, company_filters)
+    except ValueError as e:
+        raise SystemExit(str(e))
+
+    try:
+        if (shard_count > 1 and not test_mode and not seed_mode
+                and not os.path.exists(state_path)):
+            raise RuntimeError(
+                f"{state_path} does not exist; initialize this shard with "
+                f"--seed --shard-index {shard_index} --shard-count {shard_count} "
+                "before its first live run")
+        state_manager = StateManager(state_path)
+    except RuntimeError as e:
+        raise SystemExit(f"❌ {e}") from e
     notifier = Notifier(config)
+    if not test_mode and not seed_mode and not notifier.enabled:
+        raise SystemExit(
+            "❌ TELEGRAM_TOKEN and TELEGRAM_CHAT_ID are required for live and heartbeat runs; "
+            "refusing to mark alerts as delivered")
     ats_hunter = ATSHunter(config)
     custom_hunter = CustomWebHunter(config)
 
     if "--heartbeat" in sys.argv:
-        send_heartbeat(config, state_manager, notifier)
+        try:
+            send_heartbeat(config, state_manager, notifier)
+        except RuntimeError as e:
+            raise SystemExit(f"❌ {e}") from e
         return
 
     if test_mode:
@@ -585,6 +1684,10 @@ def main():
         print("🧪 TEST MODE — No state changes, no notifications")
         print(f"Keywords: {config.get('keywords', [])}")
         print(f"Locations: {config.get('locations', [])}")
+        if company_filters:
+            print(f"Selected sources: {', '.join(company_filters)}")
+        if shard_count > 1:
+            print(f"Shard: {shard_index + 1}/{shard_count} (state: {state_path})")
         print("="*60)
     elif seed_mode:
         print("="*60)
@@ -600,9 +1703,23 @@ def main():
     seen_this_run = set()
     seeded_jobs = 0
     seeded_pages = 0
+    source_failures = 0
 
     # 1. Process ATS Companies
     ats_companies = (config.get("ats_companies") or []) if hunt_ats else []
+    ats_companies = [entry for entry in ats_companies if source_selected(entry, company_filters)]
+    ats_companies = [
+        entry for entry in ats_companies
+        if source_in_shard(entry, shard_index, shard_count)
+    ]
+    custom_pages = (config.get("custom_pages") or []) if hunt_pages else []
+    custom_pages = [entry for entry in custom_pages if source_selected(entry, company_filters)]
+    custom_pages = [
+        entry for entry in custom_pages
+        if source_in_shard(entry, shard_index, shard_count)
+    ]
+    if company_filters and not ats_companies and not custom_pages:
+        raise SystemExit("no selected sources are enabled by the requested --ats-only/--pages-only mode")
     if hunt_ats:
         print("\n📡 Hunting ATS boards...")
     else:
@@ -611,9 +1728,11 @@ def main():
         name = comp["name"]
         ats_type = comp["ats"]
         slug = comp.get("slug", "")
+        source_started = time.monotonic()
+        ats_hunter.reset_request_count()
         # Optional per-company keyword override (falls back to global keywords)
         kw_override = comp.get("keywords")
-        if kw_override:
+        if kw_override is not None:
             kw_override = [k.lower() for k in kw_override]
 
         try:
@@ -623,12 +1742,26 @@ def main():
                 matches = ats_hunter.hunt_lever(slug, keywords=kw_override)
             elif ats_type == "greenhouse":
                 matches = ats_hunter.hunt_greenhouse(slug, keywords=kw_override)
+            elif ats_type == "smartrecruiters":
+                matches = ats_hunter.hunt_smartrecruiters(
+                    company_id=comp["company_id"],
+                    country=comp.get("country"),
+                    query=comp.get("query"),
+                    queries=comp.get("queries"),
+                    keywords=kw_override,
+                )
+            elif ats_type == "workable":
+                matches = ats_hunter.hunt_workable(
+                    account=comp["account"], keywords=kw_override)
             elif ats_type == "oracle_hcm":
                 matches = ats_hunter.hunt_oracle_hcm(
                     site_number=comp.get("site_number", "CX_1001"),
                     keyword=comp.get("keyword", "intern"),
                     location_id=comp.get("location_id"),
+                    location=comp.get("location"),
                     host=comp.get("host", "jpmc.fa.oraclecloud.com"),
+                    max_pages=comp.get("max_pages", 4),
+                    queries=comp.get("queries"),
                     keywords=kw_override
                 )
             elif ats_type == "workday":
@@ -647,26 +1780,71 @@ def main():
                     categories=comp.get("categories"),
                     keywords=kw_override
                 )
+            elif ats_type == "atlassian":
+                matches = ats_hunter.hunt_atlassian(
+                    location=comp.get("location", "India"),
+                    categories=comp.get("categories", ["Interns", "Graduates"]),
+                    keywords=kw_override,
+                )
             elif ats_type == "microsoft":
                 matches = ats_hunter.hunt_microsoft(
                     query=comp.get("query", "intern"),
                     location=comp.get("location", "India"),
                     keywords=kw_override
                 )
+            elif ats_type == "eightfold":
+                matches = ats_hunter.hunt_eightfold(
+                    base_url=comp["base_url"],
+                    domain=comp["domain"],
+                    query=comp.get("query", "intern"),
+                    location=comp.get("location", "India"),
+                    seniority=comp.get("seniority"),
+                    keywords=kw_override,
+                )
+            elif ats_type == "google":
+                matches = ats_hunter.hunt_google(
+                    query=comp.get("query", "intern"),
+                    location=comp.get("location", "India"),
+                    keywords=kw_override,
+                )
+            elif ats_type == "intuit":
+                matches = ats_hunter.hunt_intuit(
+                    query=comp.get("query", "interns new college grads"),
+                    location=comp.get("location", "India"),
+                    keywords=kw_override,
+                )
+            elif ats_type == "goldman_higher":
+                matches = ats_hunter.hunt_goldman(
+                    search=comp.get("search", "summer analyst"),
+                    location=comp.get("location", "India"),
+                    keywords=kw_override,
+                )
+            elif ats_type == "deshaw":
+                matches = ats_hunter.hunt_deshaw(keywords=kw_override)
             else:
                 print(f"  ⚠️ {name}: unknown ats type '{ats_type}'")
                 run_report.append((name, f"⚠️ unknown ats type '{ats_type}'"))
+                source_failures += 1
                 continue
         except Exception as e:
             print(f"  ❌ {name} ({ats_type}): {e}")
             run_report.append((name, f"❌ {e}"))
             if not test_mode:
                 state_manager.record_failure(name, e)
+                state_manager.record_source_run(
+                    name, ats_type, False, None,
+                    time.monotonic() - source_started,
+                    ats_hunter.request_count, reason=e)
+            source_failures += 1
             continue
 
         run_report.append((name, f"✅ {len(matches)} match(es)"))
-        if not test_mode and state_manager.record_success(name):
-            recovered.append(name)
+        if not test_mode:
+            state_manager.record_source_run(
+                name, ats_type, True, len(matches),
+                time.monotonic() - source_started, ats_hunter.request_count)
+            if state_manager.record_success(name):
+                recovered.append(name)
 
         if test_mode:
             print(f"  {'✅' if matches else '—'} {name} ({ats_type}): {len(matches)} matches")
@@ -687,7 +1865,6 @@ def main():
                 new_jobs.append({"company": name, **match})
 
     # 2. Process Custom Web Pages
-    custom_pages = (config.get("custom_pages") or []) if hunt_pages else []
     if hunt_pages:
         print("\n🌐 Hunting Custom Web Pages (Playwright JS-rendered)...")
     else:
@@ -695,6 +1872,7 @@ def main():
     for page_config in custom_pages:
         name = page_config["name"]
         url = page_config["url"]
+        source_started = time.monotonic()
 
         print(f"  Checking {name}...")
         result = custom_hunter.hunt(page_config)
@@ -710,10 +1888,43 @@ def main():
             run_report.append((name, f"❌ {failed_reason}"))
             if not test_mode:
                 state_manager.record_failure(name, failed_reason)
+                state_manager.record_source_run(
+                    name, "custom_page", False, None,
+                    time.monotonic() - source_started, 1, reason=failed_reason)
+            source_failures += 1
             continue
 
-        if not test_mode and state_manager.record_success(name):
-            recovered.append(name)
+        health_match_count = (
+            len(result["jobs"]) if "jobs" in result
+            else int(bool(result.get("is_match")))
+        )
+        if not test_mode:
+            state_manager.record_source_run(
+                name, "custom_page", True, health_match_count,
+                time.monotonic() - source_started, 1)
+            if state_manager.record_success(name):
+                recovered.append(name)
+
+        if "jobs" in result:
+            matches = result["jobs"]
+            run_report.append((name, f"✅ {len(matches)} match(es)"))
+            if test_mode:
+                print(f"  {'✅' if matches else '—'} {name} (browser jobs): {len(matches)} matches")
+                for match in matches[:3]:
+                    print(f"      → {match['title']} | {match['location']}")
+                if len(matches) > 3:
+                    print(f"      ... and {len(matches) - 3} more")
+                continue
+            for match in matches:
+                if not state_manager.is_new_job(name, match["id"]) or (name, match["id"]) in seen_this_run:
+                    continue
+                seen_this_run.add((name, match["id"]))
+                if seed_mode:
+                    state_manager.mark_job(name, match["id"])
+                    seeded_jobs += 1
+                else:
+                    new_jobs.append({"company": name, **match})
+            continue
 
         if test_mode:
             status = "✅ MATCH" if result["is_match"] else "— NO match"
@@ -736,6 +1947,8 @@ def main():
             seeded_pages += 1
         else:
             page_changes.append({"name": name, "url": url, "hash": result["hash"]})
+
+    custom_hunter.close()
 
     # 3. Deliver digest, THEN mark state. Undelivered chunks are queued in
     #    state.json and retried next run, so an alert is never silently lost.
@@ -764,9 +1977,16 @@ def main():
         state_manager.save()
     write_step_summary(run_report, new_jobs, state_manager)
 
-    print("\n✅ Done!")
+    if source_failures:
+        print(f"\n❌ Done with {source_failures} source failure(s).")
+    else:
+        print("\n✅ Done!")
     if seed_mode:
-        print(f"🌱 Seeded {seeded_jobs} job(s) and {seeded_pages} page baseline(s) into {STATE_FILE}")
+        print(
+            f"🌱 Seeded {seeded_jobs} job(s) and {seeded_pages} page baseline(s) "
+            f"into {state_manager.path}")
+    if source_failures:
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     main()

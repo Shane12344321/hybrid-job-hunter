@@ -16,6 +16,7 @@ exclude_keywords:
 - video editor
 
 locations:
+- india
 - bangalore
 - bengaluru
 - hyderabad
@@ -33,7 +34,8 @@ telegram:
   token: ${TELEGRAM_TOKEN}
   chat_id: ${TELEGRAM_CHAT_ID}
 
-# All slugs verified against live APIs on 2026-07-07.
+# Standard slugs verified against live APIs on 2026-07-07; priority structured
+# sources (Google/Microsoft/Qualcomm/Intuit/Uber/Goldman/D. E. Shaw) on 2026-07-10.
 # Optional per-company override: add `keywords: [...]` to any entry to
 # replace the global keyword list for that company only.
 ats_companies:
@@ -120,6 +122,41 @@ ats_companies:
 - name: LinkedIn
   ats: greenhouse
   slug: linkedin
+- name: Atlassian
+  ats: atlassian
+  location: India
+  categories:
+  - Interns
+  - Graduates
+  # Native JSON feed used by Atlassian's careers widget. The DOM widget can
+  # fail to mount even while /endpoint/careers/listings remains healthy.
+- name: Google
+  ats: google
+  query: intern
+  location: India
+- name: Microsoft
+  ats: eightfold
+  base_url: https://apply.careers.microsoft.com
+  domain: microsoft.com
+  query: intern
+  location: India
+- name: Qualcomm
+  ats: eightfold
+  base_url: https://careers.qualcomm.com
+  domain: qualcomm.com
+  query: intern
+  location: India
+  seniority: Intern
+- name: Intuit
+  ats: intuit
+  query: interns new college grads
+  location: India
+- name: Uber
+  ats: oracle_hcm
+  host: iaziqy.fa.ocs.oraclecloud.com
+  site_number: UberCareers
+  keyword: intern
+  location: India
 - name: MongoDB
   ats: greenhouse
   slug: mongodb
@@ -183,7 +220,35 @@ ats_companies:
   ats: oracle_hcm
   host: jpmc.fa.oraclecloud.com
   site_number: CX_1001
-  keyword: intern
+  location: India
+  # Three bounded searches cover internship/summer/new-grad titles in four
+  # requests total; Oracle's fuzzy `intern` query alone returns ~250 roles.
+  queries:
+  - internship
+  - summer analyst
+  - graduate
+  keywords:
+  - intern
+  - internship
+  - summer
+  - new grad
+  - graduate
+  aliases:
+  - J.P. Morgan Technology
+  - J.P. Morgan
+- name: Goldman Sachs Engineering
+  ats: goldman_higher
+  search: summer analyst
+  location: India
+  keywords:
+  - summer
+  - new analyst
+  aliases:
+  - Goldman Sachs
+- name: D. E. Shaw
+  ats: deshaw
+  aliases:
+  - DE Shaw
 - name: Point72
   ats: greenhouse
   slug: point72  # 22 intern titles, 43 India roles; user already applies here
@@ -288,18 +353,384 @@ ats_companies:
   - software-development
   - machine-learning-science
   - data-science
+# Batch-verified 2026-07-23; category: ai.
+- name: Runway
+  ats: ashby
+  slug: runway
+# Batch-verified 2026-07-23; category: ai.
+- name: Pinecone
+  ats: ashby
+  slug: pinecone
+# Batch-verified 2026-07-23; category: ai.
+- name: Replit
+  ats: ashby
+  slug: replit
+# Batch-verified 2026-07-23; category: ai.
+- name: Fireworks AI
+  ats: ashby
+  slug: fireworks
+# Batch-verified 2026-07-23; category: ai.
+- name: Cerebras
+  ats: ashby
+  slug: cerebras
+# Batch-verified 2026-07-23; category: ai.
+- name: CoreWeave
+  ats: greenhouse
+  slug: coreweave
+# Batch-verified 2026-07-23; category: ai.
+- name: Stability AI
+  ats: greenhouse
+  slug: stabilityai
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: GitLab
+  ats: greenhouse
+  slug: gitlab
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Elastic
+  ats: greenhouse
+  slug: elastic
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Datadog
+  ats: greenhouse
+  slug: datadog
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Fivetran
+  ats: greenhouse
+  slug: fivetran
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Sentry
+  ats: ashby
+  slug: sentry
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Grafana Labs
+  ats: greenhouse
+  slug: grafanalabs
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Docker
+  ats: ashby
+  slug: docker
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: CircleCI
+  ats: greenhouse
+  slug: circleci
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: LaunchDarkly
+  ats: greenhouse
+  slug: launchdarkly
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Airtable
+  ats: greenhouse
+  slug: airtable
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Asana
+  ats: greenhouse
+  slug: asana
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Amplitude
+  ats: ashby
+  slug: amplitude
+# Batch-verified 2026-07-23; category: india-product.
+- name: Navi
+  ats: ashby
+  slug: navi
+# Batch-verified 2026-07-23; category: india-product.
+- name: Slice
+  ats: greenhouse
+  slug: slice
+# Batch-verified 2026-07-23; category: quant-finance.
+- name: Jump Trading
+  ats: greenhouse
+  slug: jumptrading
+# Batch-verified 2026-07-23; category: quant-finance.
+- name: AQR
+  ats: greenhouse
+  slug: aqr
+# Batch-verified 2026-07-23; category: quant-finance.
+- name: Akuna Capital
+  ats: greenhouse
+  slug: akunacapital
+# Batch-verified 2026-07-23; category: quant-finance.
+- name: Flow Traders
+  ats: greenhouse
+  slug: flowtraders
+# Batch-verified 2026-07-23; category: quant-finance.
+- name: TransMarket Group
+  ats: greenhouse
+  slug: transmarketgroup
+# Batch-verified 2026-07-23; category: semiconductor.
+- name: Samsung Semiconductor
+  ats: greenhouse
+  slug: samsungsemiconductor
+# Batch-verified 2026-07-23; category: enterprise.
+- name: Okta
+  ats: greenhouse
+  slug: okta
+# SmartRecruiters public Posting API; three India early-career queries share the four-request budget; verified 2026-07-23.
+- name: Bosch Group
+  ats: smartrecruiters
+  company_id: BoschGroup
+  country: in
+  queries:
+  - intern
+  - graduate
+  - summer
+# Workable public careers API; India-relevant board verified 2026-07-23.
+- name: Apna
+  ats: workable
+  account: apna
+# Workable public careers API; India-relevant board verified 2026-07-23.
+- name: Weekday AI
+  ats: workable
+  account: weekday-1
+# Workable public careers API; India-relevant board verified 2026-07-23.
+- name: Astrome Technologies
+  ats: workable
+  account: astrome-technologies
+# Workable public careers API; India-relevant board verified 2026-07-23.
+- name: Valsoft Corporation
+  ats: workable
+  account: valsoft-corp
+# Official public careers endpoint verified 2026-07-23.
+- name: CrowdStrike
+  ats: workday
+  tenant: crowdstrike
+  wd_host: wd5
+  site: crowdstrikecareers
+# Official public careers endpoint verified 2026-07-23.
+- name: Micron
+  ats: eightfold
+  base_url: https://careers.micron.com
+  domain: micron.com
+  query: intern
+  location: India
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Snowflake
+  ats: ashby
+  slug: snowflake
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Coinbase
+  ats: greenhouse
+  slug: coinbase
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Lyft
+  ats: greenhouse
+  slug: lyft
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Pinterest
+  ats: greenhouse
+  slug: pinterest
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Reddit
+  ats: greenhouse
+  slug: reddit
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Instacart
+  ats: greenhouse
+  slug: instacart
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Samsara
+  ats: greenhouse
+  slug: samsara
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Verkada
+  ats: greenhouse
+  slug: verkada
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Brex
+  ats: greenhouse
+  slug: brex
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Plaid
+  ats: ashby
+  slug: plaid
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Mercury
+  ats: greenhouse
+  slug: mercury
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Ramp
+  ats: ashby
+  slug: ramp
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Chime
+  ats: greenhouse
+  slug: chime
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Affirm
+  ats: greenhouse
+  slug: affirm
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Block
+  ats: greenhouse
+  slug: block
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Toast
+  ats: greenhouse
+  slug: toast
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: SoFi
+  ats: greenhouse
+  slug: sofi
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Duolingo
+  ats: greenhouse
+  slug: duolingo
+# Batch-verified 2026-07-23; category: consumer-tech.
+- name: Discord
+  ats: greenhouse
+  slug: discord
+# Batch-verified 2026-07-23; category: ai.
+- name: OpenRouter
+  ats: ashby
+  slug: openrouter
+# Batch-verified 2026-07-23; category: ai.
+- name: Decagon
+  ats: ashby
+  slug: decagon
+# Batch-verified 2026-07-23; category: ai.
+- name: Sierra
+  ats: ashby
+  slug: sierra
+# Batch-verified 2026-07-23; category: ai.
+- name: Writer
+  ats: ashby
+  slug: writer
+# Batch-verified 2026-07-23; category: ai.
+- name: Snorkel AI
+  ats: greenhouse
+  slug: snorkelai
+# Batch-verified 2026-07-23; category: ai.
+- name: Labelbox
+  ats: greenhouse
+  slug: labelbox
+# Batch-verified 2026-07-23; category: ai.
+- name: Vanta
+  ats: ashby
+  slug: vanta
+# Batch-verified 2026-07-23; category: ai.
+- name: Palantir
+  ats: lever
+  slug: palantir
+# Batch-verified 2026-07-23; category: ai.
+- name: Nuro
+  ats: greenhouse
+  slug: nuro
+# Batch-verified 2026-07-23; category: ai.
+- name: Zoox
+  ats: lever
+  slug: zoox
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Cockroach Labs
+  ats: greenhouse
+  slug: cockroachlabs
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Temporal
+  ats: ashby
+  slug: temporal
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Supabase
+  ats: ashby
+  slug: supabase
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: PlanetScale
+  ats: greenhouse
+  slug: planetscale
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Redis
+  ats: ashby
+  slug: redis
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Fastly
+  ats: greenhouse
+  slug: fastly
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Algolia
+  ats: greenhouse
+  slug: algolia
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: Mixpanel
+  ats: greenhouse
+  slug: mixpanel
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: New Relic
+  ats: greenhouse
+  slug: newrelic
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: PagerDuty
+  ats: greenhouse
+  slug: pagerduty
+# Batch-verified 2026-07-23; category: developer-tools.
+- name: 1Password
+  ats: ashby
+  slug: 1password
+# Batch-verified 2026-07-23; category: india-product.
+- name: Porter
+  ats: lever
+  slug: porter
+# Batch-verified 2026-07-23; category: fintech.
+- name: Gemini
+  ats: greenhouse
+  slug: gemini
+# Batch-verified 2026-07-23; category: fintech.
+- name: Anchorage Digital
+  ats: lever
+  slug: anchorage
+# Batch-verified 2026-07-23; category: fintech.
+- name: FalconX
+  ats: greenhouse
+  slug: falconx
+# Batch-verified 2026-07-23; category: fintech.
+- name: Adyen
+  ats: greenhouse
+  slug: adyen
+# Batch-verified 2026-07-23; category: fintech.
+- name: Marqeta
+  ats: greenhouse
+  slug: marqeta
+# Batch-verified 2026-07-23; category: fintech.
+- name: Nubank
+  ats: ashby
+  slug: nubank
+# Batch-verified 2026-07-23; category: fintech.
+- name: Monzo
+  ats: greenhouse
+  slug: monzo
+# Batch-verified 2026-07-23; category: security.
+- name: Sophos
+  ats: lever
+  slug: sophos
+# Batch-verified 2026-07-23; category: security.
+- name: Sumo Logic
+  ats: greenhouse
+  slug: sumologic
+# Batch-verified 2026-07-23; category: security.
+- name: Recorded Future
+  ats: greenhouse
+  slug: recordedfuture
+# Batch-verified 2026-07-23; category: security.
+- name: HackerOne
+  ats: ashby
+  slug: hackerone
+# Batch-verified 2026-07-23; category: security.
+- name: Bugcrowd
+  ats: greenhouse
+  slug: bugcrowd
+# Batch-verified 2026-07-23; category: data-infrastructure.
+- name: Yugabyte
+  ats: greenhouse
+  slug: yugabyte
+# Batch-verified 2026-07-23; category: data-infrastructure.
+- name: Starburst
+  ats: greenhouse
+  slug: starburst
+# Batch-verified 2026-07-23; category: data-infrastructure.
+- name: SingleStore
+  ats: greenhouse
+  slug: singlestore
 
 custom_pages:
-# - name: Google India Jobs
-#   url: https://www.google.com/about/careers/applications/jobs/results/?location=India
-#   wait_for_selector: .VfPpkd-Bz112c-LgbsSe
-#   css_selector: ul
-#   keyword_filter: true
 # - name: Citadel
 #   url: https://www.citadel.com/careers/open-opportunities/
-#   keyword_filter: true
-# - name: Goldman Sachs
-#   url: https://higher.gs.com/roles?location=Bengaluru%2C%20India&location=Hyderabad%2C%20India
 #   keyword_filter: true
 # - name: Morgan Stanley
 #   url: https://morganstanley.tal.net/vx/lang-en-GB/mobile-0/brand-2/candidate/jobboard/vacancy/1/adv/
@@ -310,22 +741,46 @@ custom_pages:
 # - name: Optiver
 #   url: https://optiver.com/working-at-optiver/career-opportunities/
 #   keyword_filter: true
-# - name: DE Shaw
-#   url: https://www.deshaw.com/careers
-#   keyword_filter: true
 # NOTE: Amazon and NVIDIA are now hunted via native API adapters above
-# (ats: amazon / ats: workday) — no Playwright scraping needed. Microsoft has
-# an ats: microsoft adapter too, but the search API now needs a bearer token,
-# so it isn't wired into config yet. Apple stays a Playwright candidate: its
+# (ats: amazon / ats: workday) — no Playwright scraping needed. Apple stays a
+# Playwright candidate: its
 # jobs.apple.com search API is CSRF-gated and the /api/role/search path 404s
 # unauthenticated, so no native adapter ships for it.
 # - name: Apple
 #   url: https://jobs.apple.com/en-in/search?sort=relevance&search=intern&location=india-IND
 #   keyword_filter: true
-# - name: Uber
-#   url: https://www.uber.com/us/en/careers/list/?query=intern&location=IND
-#   keyword_filter: true
+- name: Atlassian Early Careers (fallback)
+  fallback_for: Atlassian
+  url: https://www.atlassian.com/company/careers/earlycareers
+  css_selector: main
+  # This is a labelled availability fallback, so any substantive page change
+  # in the main content is useful even when it omits the literal word "intern".
+  keyword_filter: false
+  location_filter: false
 - name: Goldman Sachs Summer Analyst India
+  supplement_for: Goldman Sachs Engineering
   url: https://www.goldmansachs.com/careers/students/programs-and-internships/india/summer-analyst-program
   keyword_filter: true
+  location_filter: false
+- name: D. E. Shaw India Internships (program monitor)
+  supplement_for: D. E. Shaw
+  url: https://www.deshawindia.com/careers/internships
+  keyword_filter: true
+  location_filter: false
+- name: Daksh Trading
+  url: https://www.dakshtrading.com/careers
+  # Google Sites page: hash only the careers/openings block so company-trip
+  # gallery edits do not create job alerts.
+  css_selector: '.tyJCtd ul:has(a)'
+  keyword_filter: true
+  # Daksh is based in Hong Kong, but its quant internships are relevant even
+  # when the page does not mention one of the globally configured India cities.
+  location_filter: false
+- name: Anthropic Claude Campus (program monitor)
+  supplement_for: Anthropic
+  url: https://claude.com/programs/campus
+  # Program landing page (not a job board). Spring 2026 applications are
+  # closed; hash the whole page so any substantive change — e.g. a new cohort
+  # opening or an intern/campus role going live — fires a change alert.
+  keyword_filter: false
   location_filter: false

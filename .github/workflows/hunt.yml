@@ -7,7 +7,21 @@ on:
     # Every 4 hours (offset to avoid colliding with the hourly run):
     # full run including Playwright-rendered custom pages
     - cron: '20 1,5,9,13,17,21 * * *'
-  workflow_dispatch: # Manual runs are always full runs
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Run mode
+        type: choice
+        options: [live, test, seed]
+        default: live
+      shard_count:
+        description: Number of deterministic source shards
+        type: number
+        default: 1
+      shard_index:
+        description: Zero-based shard index
+        type: number
+        default: 0
 
 # Never let two runs race on the state.json commit; queue instead of cancel
 # so an in-flight run finishes delivering its alerts.
@@ -24,6 +38,9 @@ jobs:
     env:
       # Hourly cron -> ATS only. The 4-hourly cron and manual runs -> full.
       FULL_RUN: ${{ github.event.schedule != '0 * * * *' }}
+      RUN_MODE: ${{ inputs.mode || 'live' }}
+      SHARD_COUNT: ${{ inputs.shard_count || 1 }}
+      SHARD_INDEX: ${{ inputs.shard_index || 0 }}
 
     steps:
     - name: Checkout Repository
@@ -39,6 +56,15 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+
+    - name: Validate config and run offline tests
+      run: |
+        python hybrid_hunter.py --validate
+        python test_ats.py
+        python test_adapters.py
+        python test_priority_sources.py
+        python test_reliability.py
+        python test_expansion.py
 
     - name: Cache Playwright browser
       if: env.FULL_RUN == 'true'
@@ -61,20 +87,31 @@ jobs:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
+        args=(--shard-count "$SHARD_COUNT" --shard-index "$SHARD_INDEX")
+        if [ "$RUN_MODE" = "test" ]; then
+          args+=(--test)
+        elif [ "$RUN_MODE" = "seed" ]; then
+          args+=(--seed)
+        fi
         if [ "$FULL_RUN" = "true" ]; then
-          python hybrid_hunter.py
+          python hybrid_hunter.py "${args[@]}"
         else
-          python hybrid_hunter.py --ats-only
+          python hybrid_hunter.py --ats-only "${args[@]}"
         fi
 
+    - name: Write catalog health report
+      if: always()
+      run: python catalog_report.py >> "$GITHUB_STEP_SUMMARY"
+
     - name: Commit state changes
+      if: always()
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add state.json
-        # Only commit and push if state.json changed; rebase first in case
+        git add --ignore-errors state.json 'state.shard-*-of-*.json'
+        # Only commit and push if crawler state changed; rebase first in case
         # anything landed on the branch while this run was in flight.
-        if ! git diff-index --quiet HEAD; then
+        if ! git diff-index --quiet HEAD -- state.json 'state.shard-*-of-*.json'; then
           git commit -m "chore: update job hunter state"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push

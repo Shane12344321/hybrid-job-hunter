@@ -1,8 +1,8 @@
 # Hybrid Job Hunter 🎯
 
 A hybrid job hunting automation script that combines the best of both worlds:
-1. **API-driven precision** for standard ATS boards (Ashby, Lever, Greenhouse, Oracle HCM, Workday, Amazon, Microsoft) - *Fast, reliable, zero false positives.*
-2. **JS-rendering web scraper** using Playwright for custom careers pages (like Google, Jane Street, Citadel) - *Like changedetection.io, handles dynamic content and Javascript.*
+1. **API/structured-source precision** for standard ATS boards and official careers feeds (Ashby, Lever, Greenhouse, SmartRecruiters, Workable, Oracle HCM, Workday, Eightfold, Amazon, Google, Intuit, Goldman Higher, D. E. Shaw) - *Fast, reliable, job-level deduplication.*
+2. **JS-rendering web scraper** using Playwright for custom careers pages and structured JS-only boards - *Handles dynamic content and JavaScript.*
 
 ### Supported ATS types
 
@@ -11,15 +11,24 @@ A hybrid job hunting automation script that combines the best of both worlds:
 | `ashby` | Ashby job boards | `slug` |
 | `lever` | Lever postings | `slug` |
 | `greenhouse` | Greenhouse boards | `slug` |
-| `oracle_hcm` | Oracle HCM Cloud (e.g. JP Morgan) | `host`, `site_number`, `keyword` |
+| `smartrecruiters` | SmartRecruiters public Posting API | `company_id`, optional `country`, `query` or `queries` (up to four shared requests) |
+| `workable` | Workable public careers API | `account` |
+| `oracle_hcm` | Oracle HCM Cloud (J.P. Morgan, Uber) | `host`, `site_number`, `keyword` or `queries`, optional `location`/`location_id`/`max_pages` (1–4 shared requests) |
 | `workday` | Workday CXS boards (NVIDIA, Citi, BlackRock, Adobe, Salesforce, Sprinklr, Fractal, …) | `tenant`, `wd_host`, `site`, optional `search`/`include_multi_location` |
 | `amazon` | amazon.jobs search | optional `query`, `location`, `categories` (server-side `category[]` filter) |
-| `microsoft` | Microsoft careers search API | optional `query`, `location` — *adapter shipped but no config entry: the endpoint currently serves a mismatched `*.azureedge.net` cert and gates search behind a bearer token, so it can't be polled unauthenticated yet* |
+| `atlassian` | Atlassian public careers listings feed | optional `location`, `categories` |
+| `eightfold` | Public Eightfold/PCSX boards (Microsoft, Qualcomm) | `base_url`, `domain`, optional `query`, `location`, `seniority` |
+| `microsoft` | Compatibility alias for Microsoft's Eightfold endpoint | optional `query`, `location` |
+| `google` | Google Careers server-rendered results | optional `query`, `location` |
+| `intuit` | Intuit TalentBrew search | optional `query`, `location` |
+| `goldman_higher` | Goldman Sachs Higher campus GraphQL search | optional `search`, `location` |
+| `deshaw` | D. E. Shaw's official public internships page | worldwide by design; optional `keywords` |
 
-Every hunter raises on failure (network error, non-200, bad JSON), so a dead
-source is told apart from one with no matches and gets a ⚠️ alert after 3
-consecutive failures. Each source stays within a **≤ 4 request/run** budget
-with a 15s timeout.
+Every hunter raises on failure (network error, non-200, bad JSON/HTML, missing
+result markers, or truncated pagination), so a dead source is told apart from
+one with no matches and gets a ⚠️ alert after 3 consecutive failures. Structured
+sources use a hard **≤ 4 request/run** pagination budget and normally a 15s
+timeout; incomplete reads fail loudly.
 
 This script is built to run entirely on **GitHub Actions for free**, with zero infrastructure needed.
 
@@ -49,6 +58,27 @@ This script is built to run entirely on **GitHub Actions for free**, with zero i
    - Add `TELEGRAM_CHAT_ID` with your numeric chat ID.
 
 4. **Customize Config:**
+   - **Fastest way to add a company:**
+
+     ```bash
+     python3 add_source.py "Figma"                          # probes Greenhouse/Ashby/Lever slugs
+     python3 add_source.py "NVIDIA" --url https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite
+     python3 probe.py --batch candidates.yaml --status candidate --output probe-report.yaml
+     python3 add_source.py --batch probe-report.yaml --approve "Company" --apply
+     ```
+
+     This detects the ATS, appends a verified entry to `config.yaml`, dry-runs it
+     (`--test`), and baselines it (`--seed`) so the first live run doesn't flood you.
+     It rolls the config back if verification fails. `python3 probe.py "Name or URL"`
+     does the detection read-only. `python3 hybrid_hunter.py --validate` lints the
+     config (missing adapter fields, duplicate names) without hunting.
+     Batch probing accepts YAML/CSV candidate ledgers, uses bounded concurrency,
+     records transport failures separately from genuine misses, and produces an
+     ATS-frequency roadmap without modifying production. Batch additions are
+     dry-run-only by default and require an explicit approval for every source.
+     Use `python3 probe.py --batch candidates.yaml --merge-report probe-report.yaml`
+     to retain probe lifecycle evidence, then
+     `python3 add_source.py --batch candidates.yaml --sync-active` after onboarding.
    - Edit `config.yaml` to include your desired keywords, locations, ATS companies, and custom pages.
    - Enterprise boards (Workday / Amazon / Microsoft) are configured under the
      `ats_companies` list too. One example per new adapter type:
@@ -78,13 +108,28 @@ This script is built to run entirely on **GitHub Actions for free**, with zero i
        - machine-learning-science
        - data-science
 
-     # Microsoft: adapter exists but is currently unconfigurable (see the
-     # supported-ATS table) — the search API needs a bearer token.
+     # Microsoft and Qualcomm share the public Eightfold/PCSX adapter.
      - name: Microsoft
-       ats: microsoft
+       ats: eightfold
+       base_url: https://apply.careers.microsoft.com
+       domain: microsoft.com
        query: intern
        location: India
+
+     - name: Qualcomm
+       ats: eightfold
+       base_url: https://careers.qualcomm.com
+       domain: qualcomm.com
+       query: intern
+       location: India
+       seniority: Intern
      ```
+
+   JS-only boards can emit individual jobs instead of a generic page-change
+   alert by setting `job_selector` plus an optional `id_regex`,
+   `title_selector`, `job_location_selector`, and `zero_result_text`. If the
+   selector is missing and no explicit zero marker is present, the source is
+   recorded as failed.
 
    > **Finding a Workday `site`:** it's the path segment after the tenant in the
    > careers URL — e.g. `sprinklr.wd1.myworkdayjobs.com/careers` → `site: careers`,
@@ -111,9 +156,28 @@ Useful flags:
 
 - `python hybrid_hunter.py --test` — dry run: shows matches per source, no state changes, no notifications.
 - `python hybrid_hunter.py --seed` — baseline mode: marks all currently open matching jobs and page hashes as "seen" without notifying. Run this once after adding new companies to `config.yaml` to avoid an alert flood on the first live run.
+- `python hybrid_hunter.py --test --company "Microsoft"` — run or seed one named source. `--company` is repeatable and accepts configured aliases; associated fallback/program monitors are included automatically.
 - `python hybrid_hunter.py --ats-only` / `--pages-only` — hunt only ATS boards (no browser needed) or only Playwright custom pages. The scheduled workflow uses `--ats-only` for the hourly runs.
 - `python hybrid_hunter.py --heartbeat` — send a read-only status report (sources, finds in last 24h/7d, failing sources). Does not hunt.
+- `python hybrid_hunter.py --validate` — preflight config lint: unknown `ats:` types, missing required adapter fields, duplicate source names. Exits nonzero on problems, hunts nothing.
+- `python hybrid_hunter.py --test --shard-count 8 --shard-index 0` — run one
+  deterministic source shard. Related fallback/program pages stay with their
+  parent. Live shards use isolated `state.shard-I-of-N.json` files and refuse
+  to start until each shard has first been initialized with `--seed`.
+- `python catalog_report.py` — read-only catalog/health report covering source
+  counts, structured ratio, candidate conversion, current failures, missing or
+  stale runtime evidence, suspicious zero streaks, request counts, and p95
+  source latency.
 
-Delivery guarantees: matches are only marked as seen after the Telegram message is delivered (or queued). If Telegram is down or rejects a message, the digest is stored in `state.json` under `_pending` and retried on the next run (up to 5 attempts).
+Offline reliability checks are available through `python test_ats.py`,
+`python test_adapters.py`, `python test_priority_sources.py`, and
+`python test_reliability.py`, and `python test_expansion.py`; the hunt workflow
+runs all five before crawling.
+
+Delivery guarantees: live and heartbeat runs refuse to start without Telegram
+credentials. Matches are only marked as seen after the Telegram message is
+delivered or durably queued. If Telegram is down or rejects a message, the
+digest remains in `state.json` under `_pending` and is retried on later runs;
+it is never discarded because of an attempt limit.
 
 Failure visibility: a source that fails 3 runs in a row (API error, wrong slug, bot-blocked or empty page) triggers a one-time ⚠️ Telegram warning, and a ✅ notice when it recovers. Custom pages returning empty or suspiciously short content (<200 chars — likely CAPTCHA/block) count as failures, not content changes. The daily heartbeat reports real stats: new roles in the last 24h/7d, jobs tracked, pending alerts, and any failing sources. On GitHub Actions, each run writes a per-source result table to the job summary.

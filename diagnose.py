@@ -20,6 +20,7 @@ def diagnose_page(browser, page_config, keywords, save_screenshot=False):
     url = page_config["url"]
     wait_for = page_config.get("wait_for_selector")
     css_selector = page_config.get("css_selector")
+    wait_timed_out = False
 
     print(f"\n{'='*60}")
     print(f"  {name}")
@@ -32,13 +33,18 @@ def diagnose_page(browser, page_config, keywords, save_screenshot=False):
                        "AppleWebKit/537.36 (KHTML, like Gecko) "
                        "Chrome/120.0.0.0 Safari/537.36"
         )
-        page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        response = page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        if response is None:
+            raise RuntimeError("navigation returned no HTTP response")
+        if not response.ok:
+            raise RuntimeError(f"page returned HTTP {response.status}")
 
         if wait_for:
             try:
                 page.wait_for_selector(wait_for, timeout=10000)
                 print(f"  ✅ CSS selector '{wait_for}' loaded")
-            except:
+            except Exception:
+                wait_timed_out = True
                 print(f"  ⚠️  Timeout waiting for selector '{wait_for}'")
 
         time.sleep(3)
@@ -66,6 +72,14 @@ def diagnose_page(browser, page_config, keywords, save_screenshot=False):
         else:
             text = soup.body.get_text(separator=" ", strip=True) if soup.body else ""
 
+        if wait_timed_out:
+            zero_markers = page_config.get("zero_result_text") or []
+            if isinstance(zero_markers, str):
+                zero_markers = [zero_markers]
+            if not any(marker.lower() in text.lower() for marker in zero_markers):
+                print("  ❌ Configured wait selector timed out without an explicit zero-result marker")
+                return False
+
         content_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
         empty_hash = hashlib.md5(b"").hexdigest()
 
@@ -77,6 +91,11 @@ def diagnose_page(browser, page_config, keywords, save_screenshot=False):
         elif len(text) < 200:
             print(f"  ⚠️  SUSPICIOUS — Only {len(text)} chars (probably a CAPTCHA or error page)")
             print(f"     Text: {repr(text[:200])}")
+            return False
+        elif any(marker in text.lower() for marker in (
+                "access denied", "verify you are human", "captcha", "just a moment",
+                "service unavailable", "internal server error", "error 404", "page not found")):
+            print("  ❌ ERROR/BLOCK PAGE — recognized an HTTP error or bot-block marker")
             return False
         else:
             print(f"  ✅ Extracted {len(text):,} characters of text")
@@ -142,7 +161,7 @@ def main():
         pages = [p for p in pages if filter_name in p["name"].lower()]
         if not pages:
             print(f"No custom pages match '{filter_name}'")
-            return
+            return 1
 
     print(f"🔬 PLAYWRIGHT DIAGNOSTIC — Testing {len(pages)} custom page(s)")
     print(f"   Keywords: {keywords}")
@@ -165,7 +184,8 @@ def main():
     print(f"\n{'='*60}")
     print(f"  SUMMARY: {working} working, {broken} broken/suspicious out of {len(pages)}")
     print(f"{'='*60}")
+    return 1 if broken else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

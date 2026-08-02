@@ -9,7 +9,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-sys.path.insert(0, "/Users/shanesarosh/Desktop/crawler")
+REPO_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, REPO_DIR)
 
 tmpdir = tempfile.mkdtemp()
 os.chdir(tmpdir)  # STATE_FILE is relative; keep the real one untouched
@@ -21,6 +22,7 @@ def _resp(status, payload):
     """Build a fake requests response (matches how Phase 2 fakes them)."""
     res = mock.Mock()
     res.status_code = status
+    res.ok = status < 400
     if status >= 400:
         res.raise_for_status.side_effect = Exception(f"{status} Client Error")
     else:
@@ -60,15 +62,125 @@ AMAZON_PAYLOAD = {
     ],
 }
 
-MICROSOFT_PAYLOAD = {
-    "operationResult": {"result": {
-        "totalJobs": 1,
-        "jobs": [
-            {"jobId": "1834567", "title": "Software Engineering Intern",
-             "properties": {"locations": ["Hyderabad, Telangana, India"]}},
-        ],
-    }},
+MICROSOFT_PAYLOAD = {"data": {
+    "count": 1,
+    "positions": [
+        {"id": 1970393556917519, "displayJobId": "200041777",
+         "name": "Software Engineering Intern",
+         "locations": ["Hyderabad, Telangana, India"],
+         "positionUrl": "/careers/job/1970393556917519"},
+    ],
+}}
+
+SMARTRECRUITERS_PAYLOAD = {
+    "totalFound": 2,
+    "content": [
+        {
+            "id": "sr-1", "name": "Software Engineering Intern",
+            "location": {"city": "Bengaluru", "region": "Karnataka", "country": "India"},
+        },
+        {
+            "id": "sr-2", "name": "Senior Software Engineer",
+            "location": {"city": "Bengaluru", "region": "Karnataka", "country": "India"},
+        },
+    ],
 }
+
+
+class TestSmartRecruiters(unittest.TestCase):
+    def setUp(self):
+        self.hunter = hh.ATSHunter({
+            "keywords": ["intern"], "exclude_keywords": [], "locations": ["india"],
+        })
+
+    def test_happy_path_filters_and_builds_stable_url(self):
+        with mock.patch.object(
+                hh.requests, "get", return_value=_resp(200, SMARTRECRUITERS_PAYLOAD)) as get:
+            jobs = self.hunter.hunt_smartrecruiters("Example", country="in")
+        self.assertEqual([job["id"] for job in jobs], ["sr-1"])
+        self.assertEqual(
+            jobs[0]["url"], "https://jobs.smartrecruiters.com/Example/sr-1")
+        self.assertEqual(get.call_args.kwargs["params"]["country"], "in")
+        self.assertEqual(self.hunter.request_count, 1)
+
+    def test_explicit_zero_and_missing_marker_are_distinct(self):
+        with mock.patch.object(
+                hh.requests, "get",
+                return_value=_resp(200, {"totalFound": 0, "content": []})):
+            self.assertEqual(self.hunter.hunt_smartrecruiters("Example"), [])
+        with mock.patch.object(
+                hh.requests, "get", return_value=_resp(200, {"content": []})):
+            with self.assertRaisesRegex(ValueError, "totalFound"):
+                self.hunter.hunt_smartrecruiters("Example")
+
+    def test_truncated_pagination_raises_at_four_requests(self):
+        pages = []
+        for page in range(4):
+            pages.append(_resp(200, {
+                "totalFound": 401,
+                "content": [{
+                    "id": f"{page}-{index}", "name": "Senior Engineer",
+                    "location": {"country": "India"},
+                } for index in range(100)],
+            }))
+        get = mock.Mock(side_effect=pages)
+        with mock.patch.object(hh.requests, "get", get):
+            with self.assertRaisesRegex(RuntimeError, "truncated"):
+                self.hunter.hunt_smartrecruiters("Example")
+        self.assertEqual(get.call_count, 4)
+
+
+class TestWorkable(unittest.TestCase):
+    def setUp(self):
+        self.hunter = hh.ATSHunter({
+            "keywords": ["intern"], "exclude_keywords": [], "locations": ["india"],
+        })
+
+    def test_happy_path_and_multi_location(self):
+        payload = {
+            "name": "Example",
+            "jobs": [{
+                "shortcode": "ABC123", "title": "Software Engineering Intern",
+                "url": "https://apply.workable.com/j/ABC123",
+                "telecommuting": True,
+                "locations": [{
+                    "city": "Bengaluru", "region": "Karnataka", "country": "India",
+                }],
+            }, {
+                "shortcode": "DEF456", "title": "Senior Engineer",
+                "url": "https://apply.workable.com/j/DEF456",
+                "country": "India", "city": "Pune",
+            }],
+        }
+        with mock.patch.object(hh.requests, "get", return_value=_resp(200, payload)):
+            jobs = self.hunter.hunt_workable("example")
+        self.assertEqual([job["id"] for job in jobs], ["ABC123"])
+        self.assertIn("Bengaluru", jobs[0]["location"])
+        self.assertIn("Remote", jobs[0]["location"])
+
+    def test_explicit_zero_and_malformed_schema_are_distinct(self):
+        with mock.patch.object(
+                hh.requests, "get",
+                return_value=_resp(200, {"name": "Example", "jobs": []})):
+            self.assertEqual(self.hunter.hunt_workable("example"), [])
+        with mock.patch.object(
+                hh.requests, "get",
+                return_value=_resp(200, {"name": "Example"})):
+            with self.assertRaisesRegex(ValueError, "jobs"):
+                self.hunter.hunt_workable("example")
+
+    def test_missing_stable_id_raises(self):
+        payload = {
+            "name": "Example",
+            "jobs": [{
+                "title": "Engineering Intern",
+                "url": "https://apply.workable.com/j/ABC",
+                "country": "India",
+            }],
+        }
+        with mock.patch.object(hh.requests, "get", return_value=_resp(200, payload)):
+            with self.assertRaisesRegex(ValueError, "shortcode"):
+                self.hunter.hunt_workable("example")
 
 
 class TestWorkday(unittest.TestCase):
@@ -147,15 +259,30 @@ class TestWorkday(unittest.TestCase):
                 h.hunt_workday("x", "S", "wd5")
 
     def test_pagination_stops_at_request_cap(self):
-        # total never reached and every page is full -> loop must stop at 4.
+        # total never reached and every page is full -> fail after 4 requests.
         full_page = {"total": 10 ** 6, "jobPostings": [
             {"title": "Intern", "locationsText": "India, Pune",
-             "externalPath": "/job/x/Intern_JR1"} for _ in range(20)]}
+             "externalPath": f"/job/x/Intern_JR{i}"} for i in range(20)]}
         h = self._hunter()
-        post = mock.Mock(return_value=_resp(200, full_page))
+        pages = []
+        for page in range(4):
+            payload = dict(full_page)
+            payload["jobPostings"] = [
+                {"title": "Intern", "locationsText": "India, Pune",
+                 "externalPath": f"/job/x/Intern_JR{page * 20 + i}"}
+                for i in range(20)]
+            pages.append(_resp(200, payload))
+        post = mock.Mock(side_effect=pages)
         with mock.patch.object(hh.requests, "post", post):
-            h.hunt_workday("x", "S", "wd5", include_multi_location=True)
+            with self.assertRaisesRegex(RuntimeError, "truncated"):
+                h.hunt_workday("x", "S", "wd5", include_multi_location=True)
         self.assertEqual(post.call_count, 4)  # hard cap (plan §3), never more
+
+    def test_missing_result_markers_raise(self):
+        h = self._hunter()
+        with mock.patch.object(hh.requests, "post", return_value=_resp(200, {})):
+            with self.assertRaisesRegex(ValueError, "missing total"):
+                h.hunt_workday("x", "S", "wd5")
 
     def test_single_page_stops_early(self):
         h = self._hunter()
@@ -178,7 +305,7 @@ class TestAmazon(unittest.TestCase):
         self.assertEqual(m[0]["url"], "https://www.amazon.jobs/en/jobs/10464536/software-dev-engineer-intern")
 
     def test_falls_back_to_id_when_no_icims(self):
-        payload = {"jobs": [{"title": "SDE Intern", "location": "Remote, India",
+        payload = {"hits": 1, "jobs": [{"title": "SDE Intern", "location": "Remote, India",
                              "id": "xyz-9", "job_path": "/en/jobs/xyz-9/sde"}]}
         h = hh.ATSHunter({"keywords": ["intern"], "exclude_keywords": [], "locations": ["india"]})
         with mock.patch.object(hh.requests, "get", return_value=_resp(200, payload)):
@@ -187,7 +314,7 @@ class TestAmazon(unittest.TestCase):
 
     def test_categories_appended_to_url(self):
         h = self._hunter()
-        get = mock.Mock(return_value=_resp(200, {"jobs": []}))
+        get = mock.Mock(return_value=_resp(200, {"hits": 0, "jobs": []}))
         with mock.patch.object(hh.requests, "get", get):
             h.hunt_amazon("intern", "India",
                           categories=["software-development", "machine-learning-science"])
@@ -197,7 +324,7 @@ class TestAmazon(unittest.TestCase):
 
     def test_no_categories_means_no_param(self):
         h = self._hunter()
-        get = mock.Mock(return_value=_resp(200, {"jobs": []}))
+        get = mock.Mock(return_value=_resp(200, {"hits": 0, "jobs": []}))
         with mock.patch.object(hh.requests, "get", get):
             h.hunt_amazon()
         self.assertNotIn("category[]", get.call_args[0][0])
@@ -218,7 +345,7 @@ ats_companies:
     categories: [software-development, data-science]
 custom_pages: []
 """)
-        get = mock.Mock(return_value=_resp(200, {"jobs": []}))
+        get = mock.Mock(return_value=_resp(200, {"hits": 0, "jobs": []}))
         with mock.patch.object(hh.requests, "get", get), \
                 mock.patch.object(hh.sys, "argv", ["hybrid_hunter.py", "--test", "--ats-only"]):
             hh.main()
@@ -234,8 +361,17 @@ custom_pages: []
 
     def test_empty_jobs_returns_list(self):
         h = self._hunter()
-        with mock.patch.object(hh.requests, "get", return_value=_resp(200, {"jobs": []})):
+        with mock.patch.object(hh.requests, "get", return_value=_resp(200, {"hits": 0, "jobs": []})):
             self.assertEqual(h.hunt_amazon(), [])
+
+    def test_missing_markers_and_truncation_raise(self):
+        h = self._hunter()
+        with mock.patch.object(hh.requests, "get", return_value=_resp(200, {})):
+            with self.assertRaisesRegex(ValueError, "missing hits"):
+                h.hunt_amazon()
+        with mock.patch.object(hh.requests, "get", return_value=_resp(200, {"hits": 2, "jobs": []})):
+            with self.assertRaisesRegex(RuntimeError, "truncated"):
+                h.hunt_amazon()
 
 
 class TestMicrosoft(unittest.TestCase):
@@ -247,8 +383,8 @@ class TestMicrosoft(unittest.TestCase):
         with mock.patch.object(hh.requests, "get", return_value=_resp(200, MICROSOFT_PAYLOAD)):
             m = h.hunt_microsoft("intern", "India")
         self.assertEqual(len(m), 1)
-        self.assertEqual(m[0]["id"], "1834567")
-        self.assertEqual(m[0]["url"], "https://jobs.careers.microsoft.com/global/en/job/1834567")
+        self.assertEqual(m[0]["id"], "1970393556917519")
+        self.assertEqual(m[0]["url"], "https://apply.careers.microsoft.com/careers/job/1970393556917519")
 
     def test_location_joins_list(self):
         h = self._hunter()
@@ -263,13 +399,19 @@ class TestMicrosoft(unittest.TestCase):
                 h.hunt_microsoft()
 
     def test_pagination_stops_at_cap(self):
-        full = {"operationResult": {"result": {"totalJobs": 10 ** 6, "jobs": [
-            {"jobId": str(i), "title": "Intern",
-             "properties": {"locations": ["Hyderabad, India"]}} for i in range(20)]}}}
+        pages = []
+        for page in range(4):
+            full = {"data": {"count": 10 ** 6, "positions": [
+                {"id": str(page * 20 + i), "name": "Intern",
+                 "locations": ["Hyderabad, India"],
+                 "positionUrl": f"/careers/job/{page * 20 + i}"}
+                for i in range(20)]}}
+            pages.append(_resp(200, full))
         h = self._hunter()
-        get = mock.Mock(return_value=_resp(200, full))
+        get = mock.Mock(side_effect=pages)
         with mock.patch.object(hh.requests, "get", get):
-            h.hunt_microsoft()
+            with self.assertRaisesRegex(RuntimeError, "truncated"):
+                h.hunt_microsoft()
         self.assertEqual(get.call_count, 4)  # pages 1-4, request cap
 
 
