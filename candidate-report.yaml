@@ -1,0 +1,1009 @@
+version: 1
+generated_at: '2026-07-23T10:52:21Z'
+source: candidates.yaml
+summary:
+  total: 100
+  probe_status:
+    failed: 1
+    needs_review: 5
+    not_found: 67
+    verified_endpoint: 27
+  ats_fingerprints:
+    greenhouse: 20
+    ashby: 10
+    lever: 2
+  blocked_ats_fingerprints: {}
+candidates:
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Mistral AI
+  category: ai
+  last_probed_at: '2026-07-23T10:51:04Z'
+  probe_status: verified_endpoint
+  live_postings: 0
+  suggested_entry:
+    name: Mistral AI
+    ats: lever
+    slug: mistral
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Groq
+  category: ai
+  last_probed_at: '2026-07-23T10:51:04Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Runway
+  category: ai
+  last_probed_at: '2026-07-23T10:51:04Z'
+  probe_status: verified_endpoint
+  live_postings: 4
+  suggested_entry:
+    name: Runway
+    ats: ashby
+    slug: runway
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Glean
+  category: ai
+  last_probed_at: '2026-07-23T10:51:04Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Pinecone
+  category: ai
+  last_probed_at: '2026-07-23T10:51:04Z'
+  probe_status: verified_endpoint
+  live_postings: 5
+  suggested_entry:
+    name: Pinecone
+    ats: ashby
+    slug: pinecone
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Weights & Biases
+  category: ai
+  last_probed_at: '2026-07-23T10:51:04Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Hugging Face
+  category: ai
+  last_probed_at: '2026-07-23T10:51:04Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Replit
+  category: ai
+  last_probed_at: '2026-07-23T10:51:04Z'
+  probe_status: verified_endpoint
+  live_postings: 93
+  suggested_entry:
+    name: Replit
+    ats: ashby
+    slug: replit
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Fireworks AI
+  category: ai
+  last_probed_at: '2026-07-23T10:51:08Z'
+  probe_status: needs_review
+  live_postings: 45
+  suggested_entry:
+    name: Fireworks AI
+    ats: ashby
+    slug: fireworks
+  alternatives:
+  - ats: ashby
+    slug: fireworks
+    jobs: 45
+  - ats: ashby
+    slug: fireworksai
+    jobs: 45
+  - ats: greenhouse
+    slug: fireworksai
+    jobs: 45
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Replicate
+  category: ai
+  last_probed_at: '2026-07-23T10:51:08Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Cerebras
+  category: ai
+  last_probed_at: '2026-07-23T10:51:08Z'
+  probe_status: verified_endpoint
+  live_postings: 113
+  suggested_entry:
+    name: Cerebras
+    ats: ashby
+    slug: cerebras
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: SambaNova
+  category: ai
+  last_probed_at: '2026-07-23T10:51:08Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: CoreWeave
+  category: ai
+  last_probed_at: '2026-07-23T10:51:08Z'
+  probe_status: verified_endpoint
+  live_postings: 286
+  suggested_entry:
+    name: CoreWeave
+    ats: greenhouse
+    slug: coreweave
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Stability AI
+  category: ai
+  last_probed_at: '2026-07-23T10:51:10Z'
+  probe_status: verified_endpoint
+  live_postings: 4
+  suggested_entry:
+    name: Stability AI
+    ats: greenhouse
+    slug: stabilityai
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Character.AI
+  category: ai
+  last_probed_at: '2026-07-23T10:51:10Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: GitLab
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:11Z'
+  probe_status: verified_endpoint
+  live_postings: 181
+  suggested_entry:
+    name: GitLab
+    ats: greenhouse
+    slug: gitlab
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: GitHub
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:11Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: HashiCorp
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:12Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Elastic
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:12Z'
+  probe_status: verified_endpoint
+  live_postings: 209
+  suggested_entry:
+    name: Elastic
+    ats: greenhouse
+    slug: elastic
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Datadog
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:13Z'
+  probe_status: verified_endpoint
+  live_postings: 418
+  suggested_entry:
+    name: Datadog
+    ats: greenhouse
+    slug: datadog
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Snowflake
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:13Z'
+  probe_status: failed
+  reason: 'all or part of the probe was unreliable: ashby/snowflake: (''Received response with content-encoding: br, but failed to decode it.'', error("brotli: decoder process called with data when ''can_accept_more_data()'' is False"))'
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Fivetran
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:13Z'
+  probe_status: verified_endpoint
+  live_postings: 193
+  suggested_entry:
+    name: Fivetran
+    ats: greenhouse
+    slug: fivetran
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: dbt Labs
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:14Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Sentry
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:15Z'
+  probe_status: verified_endpoint
+  live_postings: 50
+  suggested_entry:
+    name: Sentry
+    ats: ashby
+    slug: sentry
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Grafana Labs
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:15Z'
+  probe_status: verified_endpoint
+  live_postings: 120
+  suggested_entry:
+    name: Grafana Labs
+    ats: greenhouse
+    slug: grafanalabs
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Docker
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:15Z'
+  probe_status: verified_endpoint
+  live_postings: 52
+  suggested_entry:
+    name: Docker
+    ats: ashby
+    slug: docker
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: CircleCI
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:16Z'
+  probe_status: verified_endpoint
+  live_postings: 9
+  suggested_entry:
+    name: CircleCI
+    ats: greenhouse
+    slug: circleci
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: LaunchDarkly
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:17Z'
+  probe_status: needs_review
+  live_postings: 36
+  suggested_entry:
+    name: LaunchDarkly
+    ats: greenhouse
+    slug: launchdarkly
+  alternatives:
+  - ats: greenhouse
+    slug: launchdarkly
+    jobs: 36
+  - ats: ashby
+    slug: launchdarkly
+    jobs: 0
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Retool
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:17Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Airtable
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:18Z'
+  probe_status: needs_review
+  live_postings: 38
+  suggested_entry:
+    name: Airtable
+    ats: greenhouse
+    slug: airtable
+  alternatives:
+  - ats: greenhouse
+    slug: airtable
+    jobs: 38
+  - ats: ashby
+    slug: airtable
+    jobs: 0
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Canva
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:19Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Slack
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:19Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Asana
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:19Z'
+  probe_status: verified_endpoint
+  live_postings: 147
+  suggested_entry:
+    name: Asana
+    ats: greenhouse
+    slug: asana
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Monday.com
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:20Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Amplitude
+  category: developer-tools
+  last_probed_at: '2026-07-23T10:51:20Z'
+  probe_status: needs_review
+  live_postings: 45
+  suggested_entry:
+    name: Amplitude
+    ats: ashby
+    slug: amplitude
+  alternatives:
+  - ats: ashby
+    slug: amplitude
+    jobs: 45
+  - ats: greenhouse
+    slug: amplitude
+    jobs: 45
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Swiggy
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:20Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Zomato
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:21Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Flipkart
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:22Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Freshworks
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:22Z'
+  probe_status: verified_endpoint
+  live_postings: 0
+  suggested_entry:
+    name: Freshworks
+    ats: lever
+    slug: freshworks
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: BrowserStack
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:23Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Chargebee
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:23Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Zoho
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:23Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: ShareChat
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:24Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Udaan
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:24Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Juspay
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:24Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Zerodha
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:24Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Navi
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:25Z'
+  probe_status: verified_endpoint
+  live_postings: 7
+  suggested_entry:
+    name: Navi
+    ats: ashby
+    slug: navi
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Slice
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:25Z'
+  probe_status: verified_endpoint
+  live_postings: 58
+  suggested_entry:
+    name: Slice
+    ats: greenhouse
+    slug: slice
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: CoinDCX
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:25Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: ClearTax
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:26Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Innovaccer
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:26Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Hasura
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:26Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Whatfix
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:26Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: MoEngage
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:27Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: LeadSquared
+  category: india-product
+  last_probed_at: '2026-07-23T10:51:27Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Citadel
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:27Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Citadel Securities
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:28Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Two Sigma
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:28Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Hudson River Trading
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:29Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Optiver
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:29Z'
+  probe_status: verified_endpoint
+  live_postings: 0
+  suggested_entry:
+    name: Optiver
+    ats: greenhouse
+    slug: optiver
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: DRW
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:30Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Jump Trading
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:30Z'
+  probe_status: needs_review
+  live_postings: 96
+  suggested_entry:
+    name: Jump Trading
+    ats: greenhouse
+    slug: jumptrading
+  alternatives:
+  - ats: greenhouse
+    slug: jumptrading
+    jobs: 96
+  - ats: ashby
+    slug: jump
+    jobs: 3
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Millennium
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:30Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: AQR
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:31Z'
+  probe_status: verified_endpoint
+  live_postings: 45
+  suggested_entry:
+    name: AQR
+    ats: greenhouse
+    slug: aqr
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Akuna Capital
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:33Z'
+  probe_status: verified_endpoint
+  live_postings: 36
+  suggested_entry:
+    name: Akuna Capital
+    ats: greenhouse
+    slug: akunacapital
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Five Rings
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:33Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: SIG
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:33Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Flow Traders
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:33Z'
+  probe_status: verified_endpoint
+  live_postings: 38
+  suggested_entry:
+    name: Flow Traders
+    ats: greenhouse
+    slug: flowtraders
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Da Vinci
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:37Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: TransMarket Group
+  category: quant-finance
+  last_probed_at: '2026-07-23T10:51:38Z'
+  probe_status: verified_endpoint
+  live_postings: 15
+  suggested_entry:
+    name: TransMarket Group
+    ats: greenhouse
+    slug: transmarketgroup
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Intel
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:38Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: AMD
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:39Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Arm
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:41Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Broadcom
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:42Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Synopsys
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:42Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Cadence
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:42Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Micron
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:42Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Marvell
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:43Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: MediaTek
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:44Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Texas Instruments
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:44Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Samsung Semiconductor
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:44Z'
+  probe_status: verified_endpoint
+  live_postings: 48
+  suggested_entry:
+    name: Samsung Semiconductor
+    ats: greenhouse
+    slug: samsungsemiconductor
+  alternatives: []
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Applied Materials
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:46Z'
+  probe_status: verified_endpoint
+  live_postings: 260
+  suggested_entry:
+    name: Applied Materials
+    ats: ashby
+    slug: applied
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Lam Research
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:46Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: KLA
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:46Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Western Digital
+  category: semiconductor
+  last_probed_at: '2026-07-23T10:51:46Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: SAP
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:46Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: IBM
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:47Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Oracle
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:49Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Cisco
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:50Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Dell Technologies
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:50Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: HPE
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:53Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: ServiceNow
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:53Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Palo Alto Networks
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:53Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: CrowdStrike
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:55Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Okta
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:56Z'
+  probe_status: verified_endpoint
+  live_postings: 345
+  suggested_entry:
+    name: Okta
+    ats: greenhouse
+    slug: okta
+  alternatives: []
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Fortinet
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:56Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Akamai
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:57Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Nutanix
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:57Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Red Hat
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:58Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+- status: candidate
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Splunk
+  category: enterprise
+  last_probed_at: '2026-07-23T10:51:58Z'
+  probe_status: not_found
+  reason: no Greenhouse, Ashby, or Lever board matched the name

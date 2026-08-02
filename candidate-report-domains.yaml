@@ -1,0 +1,371 @@
+version: 1
+generated_at: '2026-07-23T11:27:59Z'
+source: candidates.yaml
+summary:
+  total: 26
+  probe_status:
+    failed: 7
+    needs_review: 2
+    unsupported: 14
+    verified_endpoint: 3
+  ats_fingerprints:
+    workday: 3
+    eightfold: 2
+  blocked_ats_fingerprints:
+    icims: 2
+    avature: 1
+    smartrecruiters: 1
+candidates:
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Intel
+  company_domain: intel.com
+  category: semiconductor
+  probe_status: failed
+  last_probed_at: '2026-07-23T11:26:59Z'
+  reason: 'careers URL discovery was unreliable: https://intel.com/careers: HTTP 403; https://intel.com/jobs: HTTP 403; https://careers.intel.com: HTTPSConnectionPool(host=''careers.intel.com'', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host=''careers.intel.com'', port=443): Failed to resolve ''careers.intel.com'' ([Errno 8] nodename nor servname provided, or not known)"))'
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: AMD
+  company_domain: amd.com
+  category: semiconductor
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:26:59Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://internal-amd.icims.com/jobs/search?back=none&redirect=search
+  discovered_careers_url: https://internal-amd.icims.com/jobs/search?back=none&redirect=search
+  unsupported_ats: icims
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Arm
+  company_domain: arm.com
+  category: semiconductor
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:26:59Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://earlycareers-arm.icims.com/jobs/login?loginOnly=1&redirect=dashboard
+  discovered_careers_url: https://earlycareers-arm.icims.com/jobs/login?loginOnly=1&redirect=dashboard
+  unsupported_ats: icims
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Broadcom
+  company_domain: broadcom.com
+  category: semiconductor
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:26:59Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://www.broadcom.com/company/careers
+  discovered_careers_url: https://www.broadcom.com/company/careers
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Synopsys
+  company_domain: synopsys.com
+  category: semiconductor
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:26:59Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://synopsys.avature.net/talentcommunity?jobId=88&source=Radancy&tags=Careersite_leads
+  discovered_careers_url: https://synopsys.avature.net/talentcommunity?jobId=88&source=Radancy&tags=Careersite_leads
+  unsupported_ats: avature
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Cadence
+  company_domain: cadence.com
+  category: semiconductor
+  probe_status: failed
+  last_probed_at: '2026-07-23T11:26:59Z'
+  reason: 'careers URL discovery was unreliable: https://careers.cadence.com: HTTPSConnectionPool(host=''careers.cadence.com'', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host=''careers.cadence.com'', port=443): Failed to resolve ''careers.cadence.com'' ([Errno 8] nodename nor servname provided, or not known)"))'
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Marvell
+  company_domain: marvell.com
+  category: semiconductor
+  probe_status: failed
+  last_probed_at: '2026-07-23T11:26:59Z'
+  reason: 'careers URL discovery was unreliable: https://marvell.com/careers: HTTP 403; https://marvell.com/jobs: HTTP 403; https://careers.marvell.com: HTTPSConnectionPool(host=''careers.marvell.com'', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host=''careers.marvell.com'', port=443): Failed to resolve ''careers.marvell.com'' ([Errno 8] nodename nor servname provided, or not known)"))'
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: MediaTek
+  company_domain: mediatek.com
+  category: semiconductor
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:26:59Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://www.mediatek.com/
+  discovered_careers_url: https://www.mediatek.com/
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Texas Instruments
+  company_domain: ti.com
+  category: semiconductor
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:09Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://careers.ti.com/en/sites/CX
+  discovered_careers_url: https://careers.ti.com/en/sites/CX
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Applied Materials
+  company_domain: appliedmaterials.com
+  category: semiconductor
+  probe_status: verified_endpoint
+  last_probed_at: '2026-07-23T11:27:10Z'
+  live_postings: 3
+  suggested_entry:
+    name: Applied Materials
+    ats: eightfold
+    base_url: https://careers.appliedmaterials.com
+    domain: appliedmaterials.com
+    query: intern
+    location: India
+  alternatives: []
+  careers_url: https://careers.appliedmaterials.com/careers
+  discovered_careers_url: https://careers.appliedmaterials.com/careers
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Lam Research
+  company_domain: lamresearch.com
+  category: semiconductor
+  probe_status: verified_endpoint
+  last_probed_at: '2026-07-23T11:27:12Z'
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+  careers_url: https://careers.lamresearch.com/careers
+  discovered_careers_url: https://careers.lamresearch.com/careers
+  live_postings: 2
+  suggested_entry:
+    name: Lam Research
+    ats: eightfold
+    base_url: https://careers.lamresearch.com
+    domain: lamresearch.com
+    query: intern
+    location: India
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: KLA
+  company_domain: kla.com
+  category: semiconductor
+  probe_status: needs_review
+  last_probed_at: '2026-07-23T11:27:15Z'
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+  careers_url: https://kla.wd1.myworkdayjobs.com/Search
+  discovered_careers_url: https://kla.wd1.myworkdayjobs.com/Search
+  live_postings: 650
+  suggested_entry: &id001
+    name: KLA
+    ats: workday
+    tenant: kla
+    wd_host: wd1
+    site: Search
+  alternatives:
+  - careers_url: https://kla.wd1.myworkdayjobs.com/Search
+    suggested_entry: *id001
+    live_postings: 650
+  - careers_url: https://kla.wd1.myworkdayjobs.com/Search?q=algorithm%20engineer
+    suggested_entry:
+      name: KLA
+      ats: workday
+      tenant: kla
+      wd_host: wd1
+      site: Search
+    live_postings: 650
+  - careers_url: https://kla.wd1.myworkdayjobs.com/Search?q=optical%20engineer
+    suggested_entry:
+      name: KLA
+      ats: workday
+      tenant: kla
+      wd_host: wd1
+      site: Search
+    live_postings: 650
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Western Digital
+  company_domain: westerndigital.com
+  category: semiconductor
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:20Z'
+  reason: SmartRecruiters API rejected company identifier 'WesternDigital'
+  careers_url: https://careers.smartrecruiters.com/WesternDigital
+  discovered_careers_url: https://careers.smartrecruiters.com/WesternDigital
+  unsupported_ats: smartrecruiters
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: SAP
+  company_domain: sap.com
+  category: enterprise
+  probe_status: failed
+  last_probed_at: '2026-07-23T11:27:21Z'
+  reason: 'careers URL discovery was unreliable: https://sap.com/careers: HTTP 403; https://sap.com/jobs: HTTP 403; https://careers.sap.com: HTTPSConnectionPool(host=''careers.sap.com'', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host=''careers.sap.com'', port=443): Failed to resolve ''careers.sap.com'' ([Errno 8] nodename nor servname provided, or not known)"))'
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: IBM
+  company_domain: ibm.com
+  category: enterprise
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:22Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://www.ibm.com/careers
+  discovered_careers_url: https://www.ibm.com/careers
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Oracle
+  company_domain: oracle.com
+  category: enterprise
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:22Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://www.oracle.com/careers/?utm_source=chatgpt.com
+  discovered_careers_url: https://www.oracle.com/careers/?utm_source=chatgpt.com
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Cisco
+  company_domain: cisco.com
+  category: enterprise
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:23Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://careers.cisco.com/global/en
+  discovered_careers_url: https://careers.cisco.com/global/en
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Dell Technologies
+  company_domain: dell.com
+  category: enterprise
+  probe_status: failed
+  last_probed_at: '2026-07-23T11:27:23Z'
+  reason: 'careers URL discovery was unreliable: https://dell.com/careers: HTTP 403; https://dell.com/jobs: HTTP 403; https://careers.dell.com: HTTPSConnectionPool(host=''careers.dell.com'', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host=''careers.dell.com'', port=443): Failed to resolve ''careers.dell.com'' ([Errno 8] nodename nor servname provided, or not known)"))'
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: HPE
+  company_domain: hpe.com
+  category: enterprise
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:24Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://careers.hpe.com/us/en
+  discovered_careers_url: https://careers.hpe.com/us/en
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: ServiceNow
+  company_domain: servicenow.com
+  category: enterprise
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:27Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://careers.servicenow.com/
+  discovered_careers_url: https://careers.servicenow.com/
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Palo Alto Networks
+  company_domain: paloaltonetworks.com
+  category: enterprise
+  probe_status: verified_endpoint
+  last_probed_at: '2026-07-23T11:27:28Z'
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+  careers_url: https://paloaltonetworks.wd5.myworkdayjobs.com/en-US/panwexternalcareers/introduceYourself?clientRequestID=06f06ca6dae2441d99391ed600fc2265
+  discovered_careers_url: https://paloaltonetworks.wd5.myworkdayjobs.com/en-US/panwexternalcareers/introduceYourself?clientRequestID=06f06ca6dae2441d99391ed600fc2265
+  live_postings: 734
+  suggested_entry:
+    name: Palo Alto Networks
+    ats: workday
+    tenant: paloaltonetworks
+    wd_host: wd5
+    site: panwexternalcareers
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Fortinet
+  company_domain: fortinet.com
+  category: enterprise
+  probe_status: failed
+  last_probed_at: '2026-07-23T11:27:28Z'
+  reason: 'careers URL discovery was unreliable: https://careers.fortinet.com: HTTPSConnectionPool(host=''careers.fortinet.com'', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host=''careers.fortinet.com'', port=443): Failed to resolve ''careers.fortinet.com'' ([Errno 8] nodename nor servname provided, or not known)"))'
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Akamai
+  company_domain: akamai.com
+  category: enterprise
+  probe_status: failed
+  last_probed_at: '2026-07-23T11:27:29Z'
+  reason: 'careers URL discovery was unreliable: https://akamai.com/careers: HTTP 403; https://akamai.com/jobs: HTTP 403; https://careers.akamai.com: HTTPSConnectionPool(host=''careers.akamai.com'', port=443): Max retries exceeded with url: / (Caused by NameResolutionError("HTTPSConnection(host=''careers.akamai.com'', port=443): Failed to resolve ''careers.akamai.com'' ([Errno 8] nodename nor servname provided, or not known)"))'
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Nutanix
+  company_domain: nutanix.com
+  category: enterprise
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:32Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://careers.nutanix.com/en/
+  discovered_careers_url: https://careers.nutanix.com/en/
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Red Hat
+  company_domain: redhat.com
+  category: enterprise
+  probe_status: needs_review
+  last_probed_at: '2026-07-23T11:27:34Z'
+  reason: no Greenhouse, Ashby, or Lever board matched the name
+  careers_url: https://redhat.wd5.myworkdayjobs.com/jobs/
+  discovered_careers_url: https://redhat.wd5.myworkdayjobs.com/jobs/
+  live_postings: 120
+  suggested_entry: &id002
+    name: Red Hat
+    ats: workday
+    tenant: redhat
+    wd_host: wd5
+    site: jobs
+  alternatives:
+  - careers_url: https://redhat.wd5.myworkdayjobs.com/jobs/
+    suggested_entry: *id002
+    live_postings: 120
+  - careers_url: https://redhat.wd5.myworkdayjobs.com/jobs/login
+    suggested_entry:
+      name: Red Hat
+      ats: workday
+      tenant: redhat
+      wd_host: wd5
+      site: jobs
+    live_postings: 120
+  - careers_url: https://redhat.wd5.myworkdayjobs.com/en-US/jobs/introduceYourself
+    suggested_entry:
+      name: Red Hat
+      ats: workday
+      tenant: redhat
+      wd_host: wd5
+      site: jobs
+    live_postings: 120
+- status: probed
+  india_relevance: to_verify
+  early_career_evidence: to_verify
+  name: Splunk
+  company_domain: splunk.com
+  category: enterprise
+  probe_status: unsupported
+  last_probed_at: '2026-07-23T11:27:35Z'
+  reason: URL not recognized as a supported ATS. If the board is JS-rendered, add it as a custom page instead (see .claude/skills/add-source and diagnose.py).
+  careers_url: https://careers.cisco.com/global/en/splunk
+  discovered_careers_url: https://careers.cisco.com/global/en/splunk
