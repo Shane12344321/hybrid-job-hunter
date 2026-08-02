@@ -3,3 +3,5 @@ __pycache__/
 screenshots/
 .env
 .DS_Store
+tmp/
+.claude/settings.local.json
