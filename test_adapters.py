@@ -16,6 +16,10 @@ tmpdir = tempfile.mkdtemp()
 os.chdir(tmpdir)  # STATE_FILE is relative; keep the real one untouched
 
 import hybrid_hunter as hh
+import testing_support
+
+setUpModule = testing_support.block_network
+tearDownModule = testing_support.restore_network
 
 
 def _resp(status, payload):

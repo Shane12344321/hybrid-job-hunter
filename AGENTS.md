@@ -29,7 +29,8 @@ IDs, page hashes, failure counts, undelivered digests) persists in
 | `hybrid_hunter.py` | Everything: `StateManager`, `ATSHunter` (all adapters), `CustomWebHunter` (Playwright), digest delivery, `main()` |
 | `config.yaml` | Keywords, exclude-keywords, locations, Telegram env refs, `ats_companies`, `custom_pages` |
 | `state.json` | Runtime state — **machine-managed, never hand-edit** (see below) |
-| `test_adapters.py`, `test_priority_sources.py`, `test_ats.py`, `test_reliability.py` | Offline unittest suites, all network mocked |
+| `test_adapters.py`, `test_priority_sources.py`, `test_ats.py`, `test_reliability.py`, `test_expansion.py` | Offline unittest suites |
+| `testing_support.py` | `block_network()` / `restore_network()` — every suite arms these in `setUpModule` |
 | `diagnose.py` | Shows what Playwright actually renders on a custom page (`python3 diagnose.py "Name" [--screenshots]`) |
 | `probe.py` | Read-only ATS detection: slug probing (Greenhouse/Ashby/Lever) + URL recognition (Workday/Eightfold/amazon.jobs) |
 | `add_source.py` | One-command add: probe → append to config.yaml → verify `--test` → baseline `--seed`, with rollback on failure |
@@ -50,6 +51,7 @@ python3 test_adapters.py
 python3 test_priority_sources.py
 python3 test_ats.py
 python3 test_reliability.py
+python3 test_expansion.py
 
 # Live dry run of one source — the standard way to verify a config change:
 python3 hybrid_hunter.py --test --company "Exact Source Name"
@@ -94,6 +96,20 @@ locally unless explicitly asked.
 - **Trust Workday's `total` from the first page only.** Some tenants report
   `total=0` on every `offset>0` request; letting a later page overwrite it made
   a partial read look complete, which is the silent miss this design forbids.
+- **Offline suites are enforced, not assumed.** Every suite arms
+  `testing_support.block_network()`, so an unstubbed call raises instead of
+  quietly reaching the internet. This caught a real regression: when
+  `probe_candidate` gained its derived-domain fallback, three tests that
+  stubbed only `probe_name_detailed` began making live HTTP requests and still
+  passed — 500x slower and dependent on the network. If you add a code path
+  that reaches out, the suite will tell you.
+- **Discovery falls back from slug to domain.** `probe_name_detailed` only
+  reaches Greenhouse/Ashby/Lever, so a Workday/Workable company is invisible to
+  it no matter how good the slug guess is. When it misses, `probe_candidate`
+  tries `domain_candidates(name)` through `discover_careers_urls`, which
+  reaches every adapter `probe_url` understands. A derived domain that does not
+  resolve is an expected miss recorded as a warning — never `failed`, which
+  would drag a healthy candidate into the failure-alert path.
 - **Title filtering** is word-boundary and case-insensitive, against
   `keywords` minus `exclude_keywords`. Per-company `keywords:` overrides the
   global list. Word boundaries mean every surface form needs its own entry:

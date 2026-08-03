@@ -13,6 +13,10 @@ tmpdir = tempfile.mkdtemp()
 os.chdir(tmpdir)
 
 import hybrid_hunter as hh
+import testing_support
+
+setUpModule = testing_support.block_network
+tearDownModule = testing_support.restore_network
 
 
 class TestStateAndDelivery(unittest.TestCase):

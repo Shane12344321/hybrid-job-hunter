@@ -15,6 +15,10 @@ sys.path.insert(0, REPO_DIR)
 import add_source
 import catalog_report
 import probe
+import testing_support
+
+setUpModule = testing_support.block_network
+tearDownModule = testing_support.restore_network
 
 
 def _response(status, payload):
@@ -82,10 +86,50 @@ class TestCandidateLedger(unittest.TestCase):
         candidate = {"name": "Example", "status": "candidate"}
         with mock.patch.object(
                 probe, "probe_name_detailed",
-                return_value=([], ["greenhouse/example: connection failed"])):
+                return_value=([], ["greenhouse/example: connection failed"])), \
+                mock.patch.object(probe, "probe_derived_domains",
+                                  return_value=(None, None, None, None, [])):
             result = probe.probe_candidate(candidate)
         self.assertEqual(result["probe_status"], "failed")
         self.assertIn("unreliable", result["reason"])
+
+    def test_domain_candidates_are_derived_from_the_name(self):
+        self.assertEqual(
+            probe.domain_candidates("BrowserStack"),
+            ["browserstack.com", "browserstack.ai", "browserstack.io", "browserstack.co"])
+        # multi-word names also try the leading word, and suffixes are trimmed
+        self.assertIn("huggingface.co", probe.domain_candidates("Hugging Face"))
+        self.assertIn("acme.com", probe.domain_candidates("Acme Labs"))
+        self.assertEqual(probe.domain_candidates("   "), [])
+
+    def test_slug_miss_falls_back_to_the_derived_domain(self):
+        # Slug probing only reaches Greenhouse/Ashby/Lever, so a Workday or
+        # Workable company is invisible to it however good the slug guess is.
+        entry = {"name": "Example", "ats": "workable", "account": "example"}
+        with mock.patch.object(probe, "probe_name_detailed", return_value=([], [])), \
+                mock.patch.object(
+                    probe, "probe_derived_domains",
+                    return_value=(entry, 7, "example.com",
+                                  "https://apply.workable.com/example", [])):
+            result = probe.probe_candidate({"name": "Example", "status": "candidate"})
+        self.assertEqual(result["probe_status"], "verified_endpoint")
+        self.assertEqual(result["suggested_entry"], entry)
+        self.assertEqual(result["company_domain"], "example.com")
+        self.assertEqual(result["live_postings"], 7)
+
+    def test_unresolvable_derived_domains_stay_not_found(self):
+        # A guessed domain that does not resolve is an expected miss, not an
+        # unreliable probe — it must never be upgraded to "failed", which would
+        # put a healthy candidate into the failure-alert path.
+        with mock.patch.object(probe, "probe_name_detailed", return_value=([], [])), \
+                mock.patch.object(
+                    probe, "probe_derived_domains",
+                    return_value=(None, None, None, None,
+                                  ["groq.ai: NXDOMAIN", "groq.io: NXDOMAIN"])):
+            result = probe.probe_candidate({"name": "Groq", "status": "candidate"})
+        self.assertEqual(result["probe_status"], "not_found")
+        self.assertIn("derived domains", result["reason"])
+        self.assertTrue(any("NXDOMAIN" in w for w in result["warnings"]))
 
     def test_lossy_single_word_slug_requires_identity_review(self):
         candidate = {"name": "Pine Labs", "status": "candidate"}

@@ -78,6 +78,64 @@ def slug_candidates(name):
     return out
 
 
+DOMAIN_TLDS = (".com", ".ai", ".io", ".co")
+
+
+def domain_candidates(name, limit=6):
+    """Plausible company domains derived from a name, most likely first.
+
+    Name-based probing only reaches the three slug ATSes, so a company on
+    Workday/Workable/SmartRecruiters is invisible to it no matter how good the
+    slug guess is. Trying the company's own careers page reaches every adapter
+    `probe_url` understands. Kept deliberately small: this runs only after slug
+    probing has already failed, and each candidate costs up to three requests
+    inside `discover_careers_urls`."""
+    base = re.sub(r"[^a-z0-9 ]+", "", name.lower()).strip()
+    words = [w for w in base.split() if w]
+    if not words:
+        return []
+    stems = ["".join(words)]
+    trimmed = [w for w in words if w not in SUFFIX_WORDS]
+    if trimmed and trimmed != words:
+        stems.append("".join(trimmed))
+    if len(words) > 1:
+        stems.append(words[0])
+    out = []
+    for stem in stems:
+        for tld in DOMAIN_TLDS:
+            candidate = stem + tld
+            if candidate not in out:
+                out.append(candidate)
+    return out[:limit]
+
+
+def probe_derived_domains(name, limit=6):
+    """Try `domain_candidates` until one yields a supported board.
+
+    Returns ``(entry, live_count, domain, url, errors)``; entry is None when
+    nothing resolved. Transport failures are collected rather than raised so a
+    flaky DNS lookup is never recorded as a definitive "not found"."""
+    errors = []
+    for domain in domain_candidates(name, limit=limit):
+        try:
+            urls, discovery_errors = discover_careers_urls(domain)
+        except ValueError:
+            continue
+        except requests.RequestException as exc:
+            errors.append(f"{domain}: {exc}")
+            continue
+        errors.extend(discovery_errors)
+        for url in urls[:3]:
+            try:
+                entry, info = probe_url(url, name=name)
+            except requests.RequestException as exc:
+                errors.append(f"{url}: {exc}")
+                continue
+            if entry:
+                return entry, info, domain, url, errors
+    return None, None, None, None, errors
+
+
 def slug_is_high_confidence(name, slug):
     """True when a slug represents the full company name, not one generic word."""
     base = re.sub(r"[^a-z0-9 ]+", "", name.lower()).strip()
@@ -570,6 +628,29 @@ def probe_candidate(candidate):
     }
     hits = list(unique_hits.values())
     if not hits:
+        # Slug probing only reaches Greenhouse/Ashby/Lever. Before calling this
+        # a miss, try the company's own careers page, which reaches every
+        # adapter probe_url understands — that is how Hugging Face (Workable)
+        # and BrowserStack (Workday) turn up.
+        entry, info, domain, url, domain_errors = probe_derived_domains(name)
+        if entry:
+            result.update({
+                "status": "probed",
+                "probe_status": "verified_endpoint",
+                "company_domain": domain,
+                "careers_url": url,
+                "discovered_careers_url": url,
+                "live_postings": info,
+                "suggested_entry": entry,
+            })
+            return result
+        # Deliberately NOT folded into the failure decision: derived domains are
+        # guesses, so a guess that does not resolve is an expected miss, not an
+        # unreliable probe. Only the slug probe's own transport errors — against
+        # endpoints known to exist — can downgrade this to "failed".
+        if domain_errors:
+            result["warnings"] = (result.get("warnings") or []) + [
+                f"derived-domain probe: {e}" for e in domain_errors[:2]]
         if errors:
             result.update({
                 "probe_status": "failed",
@@ -579,7 +660,8 @@ def probe_candidate(candidate):
             result.update({
                 "status": "probed",
                 "probe_status": "not_found",
-                "reason": "no Greenhouse, Ashby, or Lever board matched the name",
+                "reason": ("no Greenhouse, Ashby, or Lever board matched the name, "
+                           "and no supported board was found at its derived domains"),
             })
         return result
 
