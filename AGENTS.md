@@ -96,6 +96,22 @@ locally unless explicitly asked.
 - **Trust Workday's `total` from the first page only.** Some tenants report
   `total=0` on every `offset>0` request; letting a later page overwrite it made
   a partial read look complete, which is the silent miss this design forbids.
+- **Custom pages retry once before failing.** Browser navigation fails for
+  reasons unrelated to the source — dropped connections, slow CDNs, a Chromium
+  crash that would otherwise fail every page queued behind it. `hunt()` calls
+  `_hunt_once` twice, dropping the shared browser in between; a genuinely
+  broken page fails both attempts, so failure detection is unweakened.
+- **A selector timeout fails the page — before any parsing.** The check must
+  stay ahead of the `job_selector` branch: parsing a half-rendered board yields
+  a short job list indistinguishable from a complete one. `test_priority_sources.py`
+  covers the ordering, and that test fails if the two branches are swapped back.
+- **Hash changes must reproduce before they alert.** A hash is only as stable
+  as the render behind it, and a slow page can serve enough text to pass
+  `page_text_failure` while still being incomplete. On a detected change the
+  page is re-rendered once and the new hash must match; otherwise the baseline
+  is left alone and the run reports `~ unconfirmed change`. Repeated
+  unconfirmed changes on one page mean its `css_selector` is picking up
+  something dynamic — narrow the selector rather than removing this check.
 - **Offline suites are enforced, not assumed.** Every suite arms
   `testing_support.block_network()`, so an unstubbed call raises instead of
   quietly reaching the internet. This caught a real regression: when

@@ -1307,7 +1307,28 @@ class CustomWebHunter:
                              "url": job_url})
         return {"jobs": jobs}
 
-    def hunt(self, page_config):
+    def hunt(self, page_config, attempts=2):
+        """Render a custom page, retrying once on a transient failure.
+
+        Browser navigation fails for reasons that have nothing to do with the
+        source — a dropped connection, a slow CDN, a Chromium crash that takes
+        the shared browser process with it and would otherwise fail every page
+        queued behind it. One retry, with the browser rebuilt in between, keeps
+        a blip from entering the failure streak while still reporting a page
+        that is genuinely broken: a real failure fails both attempts."""
+        last = None
+        for attempt in range(max(1, attempts)):
+            last = self._hunt_once(page_config)
+            if not last.get("failed"):
+                return last
+            if attempt + 1 < attempts:
+                print(f"  ↻ retrying {page_config['name']}: {last['failed']}")
+                # The shared Chromium may be the thing that died; drop it so the
+                # next attempt starts a fresh one.
+                self.close()
+        return last
+
+    def _hunt_once(self, page_config):
         url = page_config["url"]
         wait_for = page_config.get("wait_for_selector")
         css_selector = page_config.get("css_selector")
@@ -1343,14 +1364,19 @@ class CustomWebHunter:
             page.wait_for_timeout(int(render_delay * 1000))
             content = page.content()
 
+            # A selector timeout means the page never finished rendering, so
+            # whatever is in `content` is a partial read. Checked before the
+            # structured branch: parsing a half-rendered board yields a short
+            # job list that looks like a complete one — the silent partial read
+            # this crawler exists to avoid.
+            if wait_timed_out:
+                return {"failed": f"timeout waiting for configured selector: {wait_for}"}
+
             # Structured Playwright source: return individual jobs instead of
             # a generic page hash. This keeps JS-only boards (Atlassian) in the
             # four-hour browser path while preserving normal job-level dedup.
             if job_selector:
                 return self.parse_structured_jobs(content, page_config)
-
-            if wait_timed_out:
-                return {"failed": f"timeout waiting for configured selector: {wait_for}"}
 
             soup = BeautifulSoup(content, "html.parser")
             
@@ -1382,7 +1408,13 @@ class CustomWebHunter:
                 matches_keywords = True # Ignore keywords if filter is false
                 
             if location_filter and self.locations:
-                matches_locations = any(l in text_lower for l in self.locations)
+                # Word-boundary, matching the ATS path, so "india" can't hit
+                # "Indiana" in a footer. Deliberately does NOT apply
+                # exclude_locations: this is whole-page text, and a careers page
+                # that mentions "USA" anywhere is not thereby a non-India page.
+                matches_locations = any(
+                    re.search(r'\b' + re.escape(l) + r'\b', text_lower)
+                    for l in self.locations)
             else:
                 matches_locations = True
                 
@@ -2089,6 +2121,18 @@ def main():
             continue
         if not state_manager.hash_changed(name, result["hash"]):
             run_report.append((name, "✅ no change"))
+            continue
+        # Confirm the change before alerting. A hash is only as stable as the
+        # render that produced it: a slow-loading page can serve enough text to
+        # pass page_text_failure while still being incomplete, and that partial
+        # text hashes differently every time. Re-render once and require the
+        # new hash to reproduce; a real content change reproduces, a rendering
+        # artefact does not. Costs an extra load only when a change is seen.
+        confirmation = custom_hunter.hunt(page_config)
+        if confirmation.get("failed") or confirmation.get("hash") != result["hash"]:
+            detail = confirmation.get("failed") or "hash did not reproduce"
+            print(f"  ~ {name}: change not confirmed ({detail}); leaving baseline alone")
+            run_report.append((name, f"~ unconfirmed change ({detail})"))
             continue
         run_report.append((name, "✅ CHANGED"))
         if seed_mode:

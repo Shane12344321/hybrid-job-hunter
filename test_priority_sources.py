@@ -1,5 +1,6 @@
 """Offline contract tests for the priority-company crawler sources."""
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -299,6 +300,102 @@ class TestAtlassianStructuredFallback(unittest.TestCase):
         self.assertEqual(self.parser.parse_structured_jobs("<body>No jobs found</body>", self.config), {"jobs": []})
         broken = self.parser.parse_structured_jobs("<body>Navigation only</body>", self.config)
         self.assertIn("failed", broken)
+
+
+class TestCustomPageRobustness(unittest.TestCase):
+    def hunter(self):
+        return hh.CustomWebHunter({
+            "keywords": ["intern"], "exclude_keywords": [],
+            "locations": ["india", "remote"]})
+
+    def test_retries_once_then_succeeds(self):
+        h = self.hunter()
+        attempts = []
+
+        def flaky(page_config):
+            attempts.append(page_config["name"])
+            if len(attempts) == 1:
+                return {"failed": "page load crashed: connection reset"}
+            return {"hash": "abc", "is_match": True}
+
+        with mock.patch.object(h, "_hunt_once", side_effect=flaky), \
+                mock.patch.object(h, "close") as closed:
+            result = h.hunt({"name": "Example", "url": "https://example.test"})
+        self.assertEqual(result["hash"], "abc")
+        self.assertEqual(len(attempts), 2)
+        # the shared browser is dropped between attempts in case it was the
+        # thing that died
+        self.assertEqual(closed.call_count, 1)
+
+    def test_a_genuinely_broken_page_still_fails(self):
+        h = self.hunter()
+        with mock.patch.object(
+                h, "_hunt_once",
+                return_value={"failed": "page returned HTTP 500"}) as once, \
+                mock.patch.object(h, "close"):
+            result = h.hunt({"name": "Example", "url": "https://example.test"})
+        self.assertIn("failed", result)
+        self.assertEqual(once.call_count, 2)  # tried twice, then reported
+
+    def test_retry_can_be_disabled(self):
+        h = self.hunter()
+        with mock.patch.object(
+                h, "_hunt_once", return_value={"failed": "boom"}) as once:
+            h.hunt({"name": "Example", "url": "https://x.test"}, attempts=1)
+        self.assertEqual(once.call_count, 1)
+
+    def _fake_browser(self, html, selector_times_out):
+        page = mock.Mock()
+        page.goto.return_value = mock.Mock(ok=True, status=200)
+        page.content.return_value = html
+        if selector_times_out:
+            page.wait_for_selector.side_effect = Exception("timeout")
+        browser = mock.Mock()
+        browser.new_page.return_value = page
+        return browser
+
+    def test_selector_timeout_fails_a_structured_page_instead_of_parsing_it(self):
+        # A timeout means the board never finished rendering. Parsing anyway
+        # returns a short job list indistinguishable from a complete one — the
+        # silent partial read this crawler exists to prevent.
+        html = ('<body><a href="/company/careers/details/1/software-intern">'
+                'Software Intern</a></body>')
+        h = self.hunter()
+        with mock.patch.object(h, "_ensure_browser",
+                               return_value=self._fake_browser(html, True)):
+            result = h._hunt_once({
+                "name": "Example", "url": "https://example.test",
+                "wait_for_selector": ".jobs",
+                "job_selector": "a[href*='/details/']",
+                "id_regex": r"/details/([^/?#]+)",
+                "location_filter": False,
+            })
+        self.assertIn("failed", result)
+        self.assertIn("timeout", result["failed"])
+        self.assertNotIn("jobs", result)
+
+    def test_structured_page_parses_when_the_selector_resolves(self):
+        html = ('<body><a href="/company/careers/details/1/software-intern">'
+                'Software Intern</a></body>')
+        h = self.hunter()
+        with mock.patch.object(h, "_ensure_browser",
+                               return_value=self._fake_browser(html, False)):
+            result = h._hunt_once({
+                "name": "Example", "url": "https://example.test",
+                "wait_for_selector": ".jobs",
+                "job_selector": "a[href*='/details/']",
+                "id_regex": r"/details/([^/?#]+)",
+                "location_filter": False,
+            })
+        self.assertEqual([j["id"] for j in result["jobs"]], ["1"])
+
+    def test_page_location_match_is_word_boundary(self):
+        h = self.hunter()
+        # "india" must not match "Indiana" in page text
+        self.assertTrue(any(re.search(r'\b' + l + r'\b', "roles in bengaluru, india")
+                            for l in h.locations))
+        self.assertFalse(any(re.search(r'\b' + l + r'\b', "our indianapolis office")
+                             for l in h.locations))
 
 
 class TestPriorityCompanyConfig(unittest.TestCase):
