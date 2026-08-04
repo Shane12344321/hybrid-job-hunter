@@ -813,8 +813,18 @@ custom_pages:
 - name: D. E. Shaw India Internships (program monitor)
   supplement_for: D. E. Shaw
   url: https://www.deshawindia.com/careers/internships
+  # Parsed per job rather than hashed. This page renders the full positions
+  # list (95 cards, 37,914 chars), so a whole-page hash fired a generic
+  # "changes detected" alert every time any senior role was added or removed —
+  # measured drifting within ~20 minutes on 2026-08-03. Job-level parsing dedups
+  # per posting, so a new India internship alerts once, with its title and link.
+  # `parent-arrow-long` is the same stable class hunt_deshaw uses on
+  # deshaw.com; the styled-components classes here are build-generated and
+  # would break on redeploy, so don't scope by those.
+  job_selector: a.parent-arrow-long[href*='/careers/']
+  id_regex: -(\d+)$
   keyword_filter: true
-  location_filter: false
+  location_filter: false  # the domain is India-only, cards carry no location
 - name: Daksh Trading
   url: https://www.dakshtrading.com/careers
   # Google Sites page: hash only the careers/openings block so company-trip
@@ -828,7 +838,11 @@ custom_pages:
   supplement_for: Anthropic
   url: https://claude.com/programs/campus
   # Program landing page (not a job board). Spring 2026 applications are
-  # closed; hash the whole page so any substantive change — e.g. a new cohort
-  # opening or an intern/campus role going live — fires a change alert.
+  # closed; a change here — a new cohort opening, an intern/campus role going
+  # live — should fire an alert.
+  # Scoped to <main>: the whole body is 15,609 chars of which only 2,033 are
+  # the programme content, and hashing nav/footer/cookie chrome turns every
+  # unrelated site tweak into a "changes detected" alert (measured 2026-08-03).
+  css_selector: main
   keyword_filter: false
   location_filter: false

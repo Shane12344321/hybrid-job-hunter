@@ -386,6 +386,31 @@ class TestWorkday(unittest.TestCase):
                                             include_multi_location=False)
         self.assertEqual(m, [])
 
+    def test_fully_null_tombstone_row_is_skipped_not_fatal(self):
+        # NVIDIA served a row with title/locationsText/externalPath all null and
+        # only a requisition id in bulletFields — a pulled job still holding a
+        # slot. Failing on it cost the other 22 postings.
+        payload = {"total": 2, "jobPostings": [
+            {"title": None, "locationsText": None, "externalPath": None,
+             "bulletFields": ["JR2022576"]},
+            {"title": "Intern - Data", "locationsText": "India, Pune",
+             "externalPath": "/job/Intern-Data_JR1"},
+        ]}
+        with mock.patch.object(hh.requests, "post", return_value=_resp(200, payload)):
+            m = self._hunter().hunt_workday("nvidia", "S", "wd5",
+                                            include_multi_location=True)
+        self.assertEqual([x["title"] for x in m], ["Intern - Data"])
+
+    def test_partially_null_row_still_raises_as_schema_drift(self):
+        # Only a *complete* tombstone is benign; a half-populated row means the
+        # shape changed in a way we don't understand.
+        payload = {"total": 1, "jobPostings": [
+            {"title": "Intern", "locationsText": "India, Pune",
+             "externalPath": None}]}
+        with mock.patch.object(hh.requests, "post", return_value=_resp(200, payload)):
+            with self.assertRaisesRegex(ValueError, "missing title/externalPath"):
+                self._hunter().hunt_workday("x", "S", "wd5")
+
     def test_non_string_location_still_raises_as_schema_drift(self):
         payload = {"total": 1, "jobPostings": [
             {"title": "Intern", "locationsText": 42,

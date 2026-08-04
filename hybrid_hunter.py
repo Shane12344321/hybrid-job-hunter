@@ -753,6 +753,14 @@ class ATSHunter:
                 title = job.get("title")
                 location = job.get("locationsText")
                 path = job.get("externalPath")
+                # A row with *every* field null is a tombstone — a pulled
+                # requisition still occupying a slot, carrying only its id in
+                # bulletFields (NVIDIA served one on 2026-08-03). It describes
+                # no job, so skipping it loses nothing. A row with only *some*
+                # fields missing is schema drift we don't understand, and still
+                # fails the source loudly.
+                if title is None and path is None and location is None:
+                    continue
                 if (not isinstance(title, str) or not title.strip()
                         or not isinstance(path, str) or not path):
                     raise ValueError("Workday posting missing title/externalPath")
