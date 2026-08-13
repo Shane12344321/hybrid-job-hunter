@@ -108,10 +108,15 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add --ignore-errors state.json 'state.shard-*-of-*.json'
+        # A normal (unsharded) run has no shard files. Let Bash drop the
+        # unmatched glob instead of handing Git a literal pathspec that makes
+        # the otherwise-successful run fail after Telegram has already sent.
+        shopt -s nullglob
+        state_files=(state.json state.shard-*-of-*.json)
+        git add -- "${state_files[@]}"
         # Only commit and push if crawler state changed; rebase first in case
         # anything landed on the branch while this run was in flight.
-        if ! git diff-index --quiet HEAD -- state.json 'state.shard-*-of-*.json'; then
+        if ! git diff --cached --quiet -- "${state_files[@]}"; then
           git commit -m "chore: update job hunter state"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push
