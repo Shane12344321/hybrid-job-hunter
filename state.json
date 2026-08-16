@@ -299,1776 +299,1776 @@
   "_health": {
     "Runway": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:27Z",
+      "last_run": "2026-08-16T09:45:07Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 50,
+      "successful_zero_streak": 81,
+      "duration_ms": 82,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:27Z"
+      "last_success": "2026-08-16T09:45:07Z"
     },
     "Pinecone": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:28Z",
+      "last_run": "2026-08-16T09:45:07Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 87,
+      "successful_zero_streak": 81,
+      "duration_ms": 91,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:28Z"
+      "last_success": "2026-08-16T09:45:07Z"
     },
     "Replit": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:28Z",
+      "last_run": "2026-08-16T09:45:07Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 102,
+      "successful_zero_streak": 81,
+      "duration_ms": 126,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:28Z"
+      "last_success": "2026-08-16T09:45:07Z"
     },
     "Fireworks AI": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:28Z",
+      "last_run": "2026-08-16T09:45:07Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 225,
+      "successful_zero_streak": 81,
+      "duration_ms": 109,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:28Z"
+      "last_success": "2026-08-16T09:45:07Z"
     },
     "Cerebras": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:28Z",
+      "last_run": "2026-08-16T09:45:07Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 136,
+      "successful_zero_streak": 81,
+      "duration_ms": 142,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:28Z"
+      "last_success": "2026-08-16T09:45:07Z"
     },
     "CoreWeave": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:28Z",
+      "last_run": "2026-08-16T09:45:07Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 115,
+      "successful_zero_streak": 81,
+      "duration_ms": 106,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:28Z"
+      "last_success": "2026-08-16T09:45:07Z"
     },
     "Stability AI": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:28Z",
+      "last_run": "2026-08-16T09:45:07Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 103,
+      "successful_zero_streak": 81,
+      "duration_ms": 99,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:28Z"
+      "last_success": "2026-08-16T09:45:07Z"
     },
     "GitLab": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:28Z",
+      "last_run": "2026-08-16T09:45:08Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 114,
+      "successful_zero_streak": 81,
+      "duration_ms": 116,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:28Z"
+      "last_success": "2026-08-16T09:45:08Z"
     },
     "Elastic": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:28Z",
+      "last_run": "2026-08-16T09:45:08Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 119,
+      "successful_zero_streak": 81,
+      "duration_ms": 124,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:28Z"
+      "last_success": "2026-08-16T09:45:08Z"
     },
     "Datadog": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:08Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 135,
+      "successful_zero_streak": 81,
+      "duration_ms": 137,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z"
+      "last_success": "2026-08-16T09:45:08Z"
     },
     "Fivetran": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:08Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 145,
+      "successful_zero_streak": 81,
+      "duration_ms": 117,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z"
+      "last_success": "2026-08-16T09:45:08Z"
     },
     "Sentry": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:08Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 98,
+      "successful_zero_streak": 81,
+      "duration_ms": 91,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z"
+      "last_success": "2026-08-16T09:45:08Z"
     },
     "Grafana Labs": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:08Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 104,
+      "successful_zero_streak": 81,
+      "duration_ms": 130,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z"
+      "last_success": "2026-08-16T09:45:08Z"
     },
     "Docker": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:08Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 132,
+      "successful_zero_streak": 81,
+      "duration_ms": 134,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z"
+      "last_success": "2026-08-16T09:45:08Z"
     },
     "CircleCI": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:08Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 100,
+      "successful_zero_streak": 80,
+      "duration_ms": 111,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z",
+      "last_success": "2026-08-16T09:45:08Z",
       "last_failure": "2026-08-15T18:37:52Z"
     },
     "LaunchDarkly": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:09Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 107,
+      "successful_zero_streak": 81,
+      "duration_ms": 155,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z"
+      "last_success": "2026-08-16T09:45:09Z"
     },
     "Airtable": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:09Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 110,
+      "successful_zero_streak": 81,
+      "duration_ms": 170,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z"
+      "last_success": "2026-08-16T09:45:09Z"
     },
     "Asana": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:29Z",
+      "last_run": "2026-08-16T09:45:09Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 116,
+      "successful_zero_streak": 80,
+      "duration_ms": 151,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:29Z",
+      "last_success": "2026-08-16T09:45:09Z",
       "last_failure": "2026-08-14T03:31:34Z"
     },
     "Amplitude": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:09Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 109,
+      "successful_zero_streak": 81,
+      "duration_ms": 110,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:09Z"
     },
     "Navi": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:09Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 87,
+      "successful_zero_streak": 81,
+      "duration_ms": 86,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:09Z"
     },
     "Slice": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:09Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 103,
+      "successful_zero_streak": 81,
+      "duration_ms": 101,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:09Z"
     },
     "Jump Trading": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:09Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 119,
+      "successful_zero_streak": 81,
+      "duration_ms": 110,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:09Z"
     },
     "AQR": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:09Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 104,
+      "successful_zero_streak": 81,
+      "duration_ms": 105,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:09Z"
     },
     "Akuna Capital": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:10Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 95,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:10Z"
+    },
+    "Flow Traders": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:10Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 97,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:10Z"
+    },
+    "TransMarket Group": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:10Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 102,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:10Z"
+    },
+    "Samsung Semiconductor": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:10Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 105,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:10Z"
+    },
+    "Okta": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:10Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 129,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:10Z"
+    },
+    "Bosch Group": {
+      "source_type": "smartrecruiters",
+      "last_run": "2026-08-16T09:45:12Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 1796,
+      "request_count": 4,
+      "last_success": "2026-08-16T09:45:12Z"
+    },
+    "Apna": {
+      "source_type": "workable",
+      "last_run": "2026-08-16T09:45:12Z",
+      "success": true,
+      "last_match_count": 2,
+      "successful_zero_streak": 0,
+      "duration_ms": 328,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:12Z"
+    },
+    "Weekday AI": {
+      "source_type": "workable",
+      "last_run": "2026-08-16T09:45:12Z",
+      "success": true,
+      "last_match_count": 5,
+      "successful_zero_streak": 0,
+      "duration_ms": 309,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:12Z"
+    },
+    "Astrome Technologies": {
+      "source_type": "workable",
+      "last_run": "2026-08-16T09:45:13Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 168,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:13Z"
+    },
+    "Valsoft Corporation": {
+      "source_type": "workable",
+      "last_run": "2026-08-16T09:45:13Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 286,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:13Z"
+    },
+    "CrowdStrike": {
+      "source_type": "workday",
+      "last_run": "2026-08-16T09:45:14Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 700,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:14Z",
+      "last_failure": "2026-08-15T06:48:55Z"
+    },
+    "Micron": {
+      "source_type": "eightfold",
+      "last_run": "2026-08-16T09:45:14Z",
+      "success": true,
+      "last_match_count": 1,
+      "successful_zero_streak": 0,
+      "duration_ms": 625,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:14Z"
+    },
+    "Snowflake": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:15Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 450,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:15Z"
+    },
+    "Coinbase": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:15Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 119,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:15Z"
+    },
+    "Lyft": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:15Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
       "duration_ms": 102,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:15Z",
+      "last_failure": "2026-08-14T21:31:09Z"
     },
-    "Flow Traders": {
+    "Pinterest": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:15Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 125,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:15Z"
+    },
+    "Reddit": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:15Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 109,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:15Z"
+    },
+    "Instacart": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:15Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 103,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:15Z"
+    },
+    "Samsara": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:15Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 94,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:15Z"
+    },
+    "Verkada": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:15Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 117,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:15Z"
+    },
+    "Brex": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 104,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z"
+    },
+    "Plaid": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 98,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z"
+    },
+    "Mercury": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 105,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z"
+    },
+    "Ramp": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 126,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z"
+    },
+    "Chime": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:16Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
+      "duration_ms": 96,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z",
+      "last_failure": "2026-08-13T13:25:59Z"
+    },
+    "Affirm": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 106,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z",
+      "last_failure": "2026-08-16T03:06:58Z"
+    },
+    "Block": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 134,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z"
+    },
+    "Toast": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 122,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z"
+    },
+    "SoFi": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 100,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z"
+    },
+    "Duolingo": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:16Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 99,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:16Z"
+    },
+    "Discord": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:17Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 105,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:17Z"
+    },
+    "OpenRouter": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:17Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 91,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:17Z"
+    },
+    "Decagon": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:17Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 155,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:17Z"
+    },
+    "Sierra": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:17Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 189,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:17Z"
+    },
+    "Writer": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:17Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 109,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:17Z"
+    },
+    "Snorkel AI": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:17Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 99,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:17Z",
+      "last_failure": "2026-08-14T21:31:27Z"
+    },
+    "Labelbox": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:17Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 91,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:17Z"
+    },
+    "Vanta": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:17Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 140,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:17Z"
+    },
+    "Palantir": {
+      "source_type": "lever",
+      "last_run": "2026-08-16T09:45:18Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 1012,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:18Z",
+      "last_failure": "2026-08-14T17:04:39Z"
+    },
+    "Nuro": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:19Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 133,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:19Z"
+    },
+    "Zoox": {
+      "source_type": "lever",
+      "last_run": "2026-08-16T09:45:19Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 848,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:19Z",
+      "last_failure": "2026-08-13T13:26:12Z"
+    },
+    "Cockroach Labs": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:20Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 108,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:20Z",
+      "last_failure": "2026-08-14T13:20:17Z"
+    },
+    "Temporal": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:20Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 105,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:20Z"
+    },
+    "Supabase": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:20Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 97,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:20Z"
+    },
+    "PlanetScale": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:20Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 96,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:20Z",
+      "last_failure": "2026-08-14T16:00:03Z"
+    },
+    "Redis": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:20Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 97,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:20Z"
+    },
+    "Fastly": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:20Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 102,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:20Z"
+    },
+    "Algolia": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:20Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
       "duration_ms": 112,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:20Z"
     },
-    "TransMarket Group": {
+    "Mixpanel": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:20Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 94,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:20Z"
+    },
+    "New Relic": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:20Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
       "duration_ms": 103,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:20Z",
+      "last_failure": "2026-08-14T06:45:37Z"
     },
-    "Samsung Semiconductor": {
+    "PagerDuty": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:30Z",
+      "last_run": "2026-08-16T09:45:21Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 115,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:21Z"
+    },
+    "1Password": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:21Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 140,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:21Z"
+    },
+    "Porter": {
+      "source_type": "lever",
+      "last_run": "2026-08-16T09:45:21Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 602,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:21Z",
+      "last_failure": "2026-08-16T06:50:40Z"
+    },
+    "Gemini": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:21Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
       "duration_ms": 101,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:30Z"
+      "last_success": "2026-08-16T09:45:21Z",
+      "last_failure": "2026-08-13T15:04:09Z"
     },
-    "Okta": {
+    "Anchorage Digital": {
+      "source_type": "lever",
+      "last_run": "2026-08-16T09:45:22Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 635,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:22Z"
+    },
+    "FalconX": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:31Z",
+      "last_run": "2026-08-16T09:45:22Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 109,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:22Z"
+    },
+    "Adyen": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:22Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 105,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:22Z",
+      "last_failure": "2026-08-14T16:00:30Z"
+    },
+    "Marqeta": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:22Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 105,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:22Z"
+    },
+    "Nubank": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:22Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 155,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:22Z"
+    },
+    "Monzo": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:23Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 106,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:23Z",
+      "last_failure": "2026-08-14T21:31:42Z"
+    },
+    "Sophos": {
+      "source_type": "lever",
+      "last_run": "2026-08-16T09:45:23Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 903,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:23Z"
+    },
+    "Sumo Logic": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:24Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 289,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:24Z",
+      "last_failure": "2026-08-14T13:20:31Z"
+    },
+    "Recorded Future": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:24Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 100,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:24Z"
+    },
+    "HackerOne": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:45:24Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 94,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:24Z"
+    },
+    "Bugcrowd": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:24Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 95,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:24Z"
+    },
+    "Yugabyte": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:24Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 108,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:24Z"
+    },
+    "Starburst": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:24Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 98,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:24Z"
+    },
+    "SingleStore": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:45:24Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 122,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:24Z"
+    },
+    "Atlassian": {
+      "source_type": "atlassian",
+      "last_run": "2026-08-16T09:44:42Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 81,
+      "duration_ms": 274,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:42Z"
+    },
+    "Atlassian Early Careers (fallback)": {
+      "source_type": "custom_page",
+      "last_run": "2026-08-16T09:45:29Z",
+      "success": true,
+      "last_match_count": 1,
+      "successful_zero_streak": 0,
+      "duration_ms": 4156,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:29Z"
+    },
+    "Adobe": {
+      "source_type": "workday",
+      "last_run": "2026-08-16T09:45:02Z",
+      "success": true,
+      "last_match_count": 1,
+      "successful_zero_streak": 0,
+      "duration_ms": 793,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:02Z",
+      "last_failure": "2026-08-15T12:49:15Z"
+    },
+    "D. E. Shaw India Internships (program monitor)": {
+      "source_type": "custom_page",
+      "last_run": "2026-08-16T09:45:38Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 21,
+      "duration_ms": 5128,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:38Z"
+    },
+    "Anthropic Claude Campus (program monitor)": {
+      "source_type": "custom_page",
+      "last_run": "2026-08-16T09:45:45Z",
+      "success": true,
+      "last_match_count": 1,
+      "successful_zero_streak": 0,
+      "duration_ms": 3786,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:45:45Z"
+    },
+    "Microsoft": {
+      "source_type": "eightfold",
+      "last_run": "2026-08-16T09:44:43Z",
+      "success": true,
+      "last_match_count": 3,
+      "successful_zero_streak": 0,
+      "duration_ms": 430,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:43Z",
+      "last_failure": "2026-08-15T06:48:34Z"
+    },
+    "Qualcomm": {
+      "source_type": "eightfold",
+      "last_run": "2026-08-16T09:44:43Z",
+      "success": true,
+      "last_match_count": 7,
+      "successful_zero_streak": 0,
+      "duration_ms": 491,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:43Z",
+      "last_failure": "2026-08-13T06:22:33Z"
+    },
+    "OpenAI": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:38Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 571,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:38Z"
+    },
+    "Anthropic": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:38Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 229,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:38Z"
+    },
+    "Cohere": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:39Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
       "duration_ms": 116,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:31Z"
+      "last_success": "2026-08-16T09:44:39Z"
     },
-    "Bosch Group": {
-      "source_type": "smartrecruiters",
-      "last_run": "2026-08-16T09:33:32Z",
+    "Scale AI": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:39Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
-      "duration_ms": 1959,
-      "request_count": 4,
-      "last_success": "2026-08-16T09:33:32Z"
-    },
-    "Apna": {
-      "source_type": "workable",
-      "last_run": "2026-08-16T09:33:33Z",
-      "success": true,
-      "last_match_count": 2,
-      "successful_zero_streak": 0,
-      "duration_ms": 457,
+      "duration_ms": 155,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:33Z"
+      "last_success": "2026-08-16T09:44:39Z"
     },
-    "Weekday AI": {
-      "source_type": "workable",
-      "last_run": "2026-08-16T09:33:33Z",
-      "success": true,
-      "last_match_count": 5,
-      "successful_zero_streak": 0,
-      "duration_ms": 337,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:33Z"
-    },
-    "Astrome Technologies": {
-      "source_type": "workable",
-      "last_run": "2026-08-16T09:33:33Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 166,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:33Z"
-    },
-    "Valsoft Corporation": {
-      "source_type": "workable",
-      "last_run": "2026-08-16T09:33:34Z",
+    "Databricks": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:39Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
-      "duration_ms": 341,
+      "duration_ms": 173,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:34Z"
+      "last_success": "2026-08-16T09:44:39Z"
     },
-    "CrowdStrike": {
-      "source_type": "workday",
-      "last_run": "2026-08-16T09:33:35Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 733,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:35Z",
-      "last_failure": "2026-08-15T06:48:55Z"
-    },
-    "Micron": {
-      "source_type": "eightfold",
-      "last_run": "2026-08-16T09:33:35Z",
-      "success": true,
-      "last_match_count": 1,
-      "successful_zero_streak": 0,
-      "duration_ms": 691,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:35Z"
-    },
-    "Snowflake": {
+    "Sarvam AI": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:36Z",
+      "last_run": "2026-08-16T09:44:39Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
-      "duration_ms": 305,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:36Z"
-    },
-    "Coinbase": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:36Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 180,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:36Z"
-    },
-    "Lyft": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:36Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
       "duration_ms": 112,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:36Z",
-      "last_failure": "2026-08-14T21:31:09Z"
+      "last_success": "2026-08-16T09:44:39Z"
     },
-    "Pinterest": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:36Z",
+    "Perplexity": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:39Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
-      "duration_ms": 114,
+      "duration_ms": 103,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:36Z"
+      "last_success": "2026-08-16T09:44:39Z"
     },
-    "Reddit": {
+    "Together AI": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:36Z",
+      "last_run": "2026-08-16T09:44:39Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
-      "duration_ms": 115,
+      "duration_ms": 110,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:36Z"
+      "last_success": "2026-08-16T09:44:39Z"
     },
-    "Instacart": {
+    "xAI": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:36Z",
+      "last_run": "2026-08-16T09:44:39Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 120,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:39Z"
+    },
+    "Cartesia": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:39Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 58,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:39Z"
+    },
+    "Cognition": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:39Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 111,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:39Z"
+    },
+    "ElevenLabs": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:40Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 188,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:40Z"
+    },
+    "Deepgram": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:40Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
       "duration_ms": 137,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:36Z"
+      "last_success": "2026-08-16T09:44:40Z"
     },
-    "Samsara": {
+    "Observe.AI": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:36Z",
+      "last_run": "2026-08-16T09:44:40Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
-      "duration_ms": 134,
+      "duration_ms": 108,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:36Z"
+      "last_success": "2026-08-16T09:44:40Z"
     },
-    "Verkada": {
+    "Turing": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:36Z",
+      "last_run": "2026-08-16T09:44:40Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
-      "duration_ms": 124,
+      "duration_ms": 127,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:36Z"
+      "last_success": "2026-08-16T09:44:40Z"
     },
-    "Brex": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:37Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 138,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:37Z"
-    },
-    "Plaid": {
+    "Harvey": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:37Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 143,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:37Z"
-    },
-    "Mercury": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:37Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 145,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:37Z"
-    },
-    "Ramp": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:37Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 118,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:37Z"
-    },
-    "Chime": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:37Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 113,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:37Z",
-      "last_failure": "2026-08-13T13:25:59Z"
-    },
-    "Affirm": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:37Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 114,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:37Z",
-      "last_failure": "2026-08-16T03:06:58Z"
-    },
-    "Block": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:37Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 150,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:37Z"
-    },
-    "Toast": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:38Z",
+      "last_run": "2026-08-16T09:44:40Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 80,
       "duration_ms": 197,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z"
-    },
-    "SoFi": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 116,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z"
-    },
-    "Duolingo": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 104,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z"
-    },
-    "Discord": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 110,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z"
-    },
-    "OpenRouter": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 62,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z"
-    },
-    "Decagon": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 117,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z"
-    },
-    "Sierra": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 158,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z"
-    },
-    "Writer": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 75,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z"
-    },
-    "Snorkel AI": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:38Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 114,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:38Z",
-      "last_failure": "2026-08-14T21:31:27Z"
-    },
-    "Labelbox": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:39Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 95,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:39Z"
-    },
-    "Vanta": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:39Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 139,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:39Z"
-    },
-    "Palantir": {
-      "source_type": "lever",
-      "last_run": "2026-08-16T09:33:40Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 1065,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:40Z",
-      "last_failure": "2026-08-14T17:04:39Z"
-    },
-    "Nuro": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:40Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 111,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:40Z"
-    },
-    "Zoox": {
-      "source_type": "lever",
-      "last_run": "2026-08-16T09:33:41Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 1128,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:41Z",
-      "last_failure": "2026-08-13T13:26:12Z"
-    },
-    "Cockroach Labs": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:41Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 92,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:41Z",
-      "last_failure": "2026-08-14T13:20:17Z"
-    },
-    "Temporal": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:41Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 129,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:41Z"
-    },
-    "Supabase": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:41Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 113,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:41Z"
-    },
-    "PlanetScale": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:41Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 103,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:41Z",
-      "last_failure": "2026-08-14T16:00:03Z"
-    },
-    "Redis": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:41Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 88,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:41Z"
-    },
-    "Fastly": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:42Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 143,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:42Z"
-    },
-    "Algolia": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:42Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 102,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:42Z"
-    },
-    "Mixpanel": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:42Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 109,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:42Z"
-    },
-    "New Relic": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:42Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 133,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:42Z",
-      "last_failure": "2026-08-14T06:45:37Z"
-    },
-    "PagerDuty": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:42Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 103,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:42Z"
-    },
-    "1Password": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:42Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 206,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:42Z"
-    },
-    "Porter": {
-      "source_type": "lever",
-      "last_run": "2026-08-16T09:33:43Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 1198,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:43Z",
-      "last_failure": "2026-08-16T06:50:40Z"
-    },
-    "Gemini": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:44Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 101,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:44Z",
-      "last_failure": "2026-08-13T15:04:09Z"
-    },
-    "Anchorage Digital": {
-      "source_type": "lever",
-      "last_run": "2026-08-16T09:33:44Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 609,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:44Z"
-    },
-    "FalconX": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:44Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 102,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:44Z"
-    },
-    "Adyen": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:44Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 108,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:44Z",
-      "last_failure": "2026-08-14T16:00:30Z"
-    },
-    "Marqeta": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:45Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 109,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:45Z"
-    },
-    "Nubank": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:45Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 202,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:45Z"
-    },
-    "Monzo": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:45Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 108,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:45Z",
-      "last_failure": "2026-08-14T21:31:42Z"
-    },
-    "Sophos": {
-      "source_type": "lever",
-      "last_run": "2026-08-16T09:33:46Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 921,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:46Z"
-    },
-    "Sumo Logic": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:46Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 110,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:46Z",
-      "last_failure": "2026-08-14T13:20:31Z"
-    },
-    "Recorded Future": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:46Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 109,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:46Z"
-    },
-    "HackerOne": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:46Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 142,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:46Z"
-    },
-    "Bugcrowd": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:46Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 103,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:46Z"
-    },
-    "Yugabyte": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:46Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 110,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:46Z"
-    },
-    "Starburst": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:46Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 117,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:46Z"
-    },
-    "SingleStore": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:47Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 98,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:47Z"
-    },
-    "Atlassian": {
-      "source_type": "atlassian",
-      "last_run": "2026-08-16T09:33:01Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 80,
-      "duration_ms": 363,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:01Z"
-    },
-    "Atlassian Early Careers (fallback)": {
-      "source_type": "custom_page",
-      "last_run": "2026-08-16T05:46:52Z",
-      "success": true,
-      "last_match_count": 1,
-      "successful_zero_streak": 0,
-      "duration_ms": 5952,
-      "request_count": 1,
-      "last_success": "2026-08-16T05:46:52Z"
-    },
-    "Adobe": {
-      "source_type": "workday",
-      "last_run": "2026-08-16T09:33:23Z",
-      "success": true,
-      "last_match_count": 1,
-      "successful_zero_streak": 0,
-      "duration_ms": 645,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:23Z",
-      "last_failure": "2026-08-15T12:49:15Z"
-    },
-    "D. E. Shaw India Internships (program monitor)": {
-      "source_type": "custom_page",
-      "last_run": "2026-08-16T05:47:01Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 20,
-      "duration_ms": 5226,
-      "request_count": 1,
-      "last_success": "2026-08-16T05:47:01Z"
-    },
-    "Anthropic Claude Campus (program monitor)": {
-      "source_type": "custom_page",
-      "last_run": "2026-08-16T05:47:09Z",
-      "success": true,
-      "last_match_count": 1,
-      "successful_zero_streak": 0,
-      "duration_ms": 3949,
-      "request_count": 1,
-      "last_success": "2026-08-16T05:47:09Z"
-    },
-    "Microsoft": {
-      "source_type": "eightfold",
-      "last_run": "2026-08-16T09:33:02Z",
-      "success": true,
-      "last_match_count": 3,
-      "successful_zero_streak": 0,
-      "duration_ms": 464,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:02Z",
-      "last_failure": "2026-08-15T06:48:34Z"
-    },
-    "Qualcomm": {
-      "source_type": "eightfold",
-      "last_run": "2026-08-16T09:33:03Z",
-      "success": true,
-      "last_match_count": 7,
-      "successful_zero_streak": 0,
-      "duration_ms": 580,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:03Z",
-      "last_failure": "2026-08-13T06:22:33Z"
-    },
-    "OpenAI": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:32:58Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 439,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:58Z"
-    },
-    "Anthropic": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:32:58Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 206,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:58Z"
-    },
-    "Cohere": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:32:58Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 178,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:58Z"
-    },
-    "Scale AI": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:32:58Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 114,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:58Z"
-    },
-    "Databricks": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:32:58Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 168,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:58Z"
-    },
-    "Sarvam AI": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:32:58Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 118,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:58Z"
-    },
-    "Perplexity": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:32:59Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 108,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:59Z"
-    },
-    "Together AI": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:32:59Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 104,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:59Z"
-    },
-    "xAI": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:32:59Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 109,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:59Z"
-    },
-    "Cartesia": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:32:59Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 105,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:59Z"
-    },
-    "Cognition": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:32:59Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 97,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:59Z"
-    },
-    "ElevenLabs": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:32:59Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 148,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:59Z"
-    },
-    "Deepgram": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:32:59Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 141,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:59Z"
-    },
-    "Observe.AI": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:32:59Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 103,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:32:59Z"
-    },
-    "Turing": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:00Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 107,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:00Z"
-    },
-    "Harvey": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:00Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 254,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:00Z"
+      "last_success": "2026-08-16T09:44:40Z"
     },
     "Scandit": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:00Z",
+      "last_run": "2026-08-16T09:44:40Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 96,
+      "successful_zero_streak": 80,
+      "duration_ms": 100,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:00Z"
+      "last_success": "2026-08-16T09:44:40Z"
     },
     "Safari AI": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:00Z",
+      "last_run": "2026-08-16T09:44:40Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 101,
+      "successful_zero_streak": 80,
+      "duration_ms": 156,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:00Z"
+      "last_success": "2026-08-16T09:44:40Z"
     },
     "Waymo": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:00Z",
+      "last_run": "2026-08-16T09:44:41Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 142,
+      "successful_zero_streak": 80,
+      "duration_ms": 149,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:00Z"
+      "last_success": "2026-08-16T09:44:41Z"
     },
     "Notion": {
       "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:00Z",
+      "last_run": "2026-08-16T09:44:41Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 124,
+      "successful_zero_streak": 80,
+      "duration_ms": 162,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:00Z"
+      "last_success": "2026-08-16T09:44:41Z"
     },
     "Stripe": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:00Z",
+      "last_run": "2026-08-16T09:44:41Z",
       "success": true,
       "last_match_count": 1,
       "successful_zero_streak": 0,
-      "duration_ms": 132,
+      "duration_ms": 215,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:00Z",
+      "last_success": "2026-08-16T09:44:41Z",
       "last_failure": "2026-08-15T17:25:27Z"
     },
     "Cloudflare": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:01Z",
+      "last_run": "2026-08-16T09:44:41Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 130,
+      "successful_zero_streak": 80,
+      "duration_ms": 101,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:01Z"
+      "last_success": "2026-08-16T09:44:41Z"
     },
     "Airbnb": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:01Z",
+      "last_run": "2026-08-16T09:44:41Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 108,
+      "successful_zero_streak": 80,
+      "duration_ms": 114,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:01Z"
+      "last_success": "2026-08-16T09:44:41Z"
     },
     "Robinhood": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:01Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 78,
-      "duration_ms": 118,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:01Z",
-      "last_failure": "2026-08-14T17:03:48Z"
-    },
-    "Vercel": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:01Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 113,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:01Z"
-    },
-    "Linear": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:01Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 70,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:01Z"
-    },
-    "LinkedIn": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:01Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 105,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:01Z"
-    },
-    "Google": {
-      "source_type": "google",
-      "last_run": "2026-08-16T09:33:02Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 313,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:02Z"
-    },
-    "Intuit": {
-      "source_type": "intuit",
-      "last_run": "2026-08-16T09:33:04Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 78,
-      "duration_ms": 830,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:04Z",
-      "last_failure": "2026-08-16T02:35:47Z"
-    },
-    "Uber": {
-      "source_type": "oracle_hcm",
-      "last_run": "2026-08-16T09:33:04Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 758,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:04Z"
-    },
-    "MongoDB": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:04Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 159,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:04Z"
-    },
-    "Confluent": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 97,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z"
-    },
-    "Rubrik": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 119,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z"
-    },
-    "Twilio": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 104,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z"
-    },
-    "Dropbox": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 106,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z"
-    },
-    "Zscaler": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 146,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z"
-    },
-    "Postman": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 78,
-      "duration_ms": 121,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z",
-      "last_failure": "2026-08-14T11:50:20Z"
-    },
-    "Thoughtworks": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 105,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z"
-    },
-    "Baseten": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 86,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z"
-    },
-    "Lambda Labs": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:05Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 108,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:05Z"
-    },
-    "Anyscale": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:06Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 61,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
-    },
-    "Modal": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:06Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 63,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
-    },
-    "LangChain": {
-      "source_type": "ashby",
-      "last_run": "2026-08-16T09:33:06Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 127,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
-    },
-    "Figma": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:06Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 108,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
-    },
-    "Abnormal Security": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:06Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 104,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
-    },
-    "Netskope": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:06Z",
-      "success": true,
-      "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 111,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
-    },
-    "Jane Street": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:06Z",
+      "last_run": "2026-08-16T09:44:41Z",
       "success": true,
       "last_match_count": 0,
       "successful_zero_streak": 79,
       "duration_ms": 123,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
+      "last_success": "2026-08-16T09:44:41Z",
+      "last_failure": "2026-08-14T17:03:48Z"
+    },
+    "Vercel": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:42Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 159,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:42Z"
+    },
+    "Linear": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:42Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 71,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:42Z"
+    },
+    "LinkedIn": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:42Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 136,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:42Z"
+    },
+    "Google": {
+      "source_type": "google",
+      "last_run": "2026-08-16T09:44:42Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 250,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:42Z"
+    },
+    "Intuit": {
+      "source_type": "intuit",
+      "last_run": "2026-08-16T09:44:44Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 79,
+      "duration_ms": 484,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:44Z",
+      "last_failure": "2026-08-16T02:35:47Z"
+    },
+    "Uber": {
+      "source_type": "oracle_hcm",
+      "last_run": "2026-08-16T09:44:44Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 734,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:44Z"
+    },
+    "MongoDB": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:45Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 167,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:45Z"
+    },
+    "Confluent": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:45Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 91,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:45Z"
+    },
+    "Rubrik": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:45Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 113,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:45Z"
+    },
+    "Twilio": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:45Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 210,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:45Z"
+    },
+    "Dropbox": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:45Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 97,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:45Z"
+    },
+    "Zscaler": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:45Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 135,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:45Z"
+    },
+    "Postman": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:45Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 79,
+      "duration_ms": 110,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:45Z",
+      "last_failure": "2026-08-14T11:50:20Z"
+    },
+    "Thoughtworks": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:45Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 125,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:45Z"
+    },
+    "Baseten": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:46Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 159,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:46Z"
+    },
+    "Lambda Labs": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:46Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 171,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:46Z"
+    },
+    "Anyscale": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:46Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 169,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:46Z"
+    },
+    "Modal": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:46Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 142,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:46Z"
+    },
+    "LangChain": {
+      "source_type": "ashby",
+      "last_run": "2026-08-16T09:44:46Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 98,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:46Z"
+    },
+    "Figma": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:46Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 178,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:46Z"
+    },
+    "Abnormal Security": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:46Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 103,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:46Z"
+    },
+    "Netskope": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:47Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 145,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:47Z"
+    },
+    "Jane Street": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:47Z",
+      "success": true,
+      "last_match_count": 0,
+      "successful_zero_streak": 80,
+      "duration_ms": 114,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:47Z"
     },
     "Tower Research": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:06Z",
+      "last_run": "2026-08-16T09:44:47Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 129,
+      "successful_zero_streak": 80,
+      "duration_ms": 108,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
+      "last_success": "2026-08-16T09:44:47Z"
     },
     "WorldQuant": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:06Z",
+      "last_run": "2026-08-16T09:44:47Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 102,
+      "successful_zero_streak": 80,
+      "duration_ms": 99,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:06Z"
+      "last_success": "2026-08-16T09:44:47Z"
     },
     "JP Morgan Chase": {
       "source_type": "oracle_hcm",
-      "last_run": "2026-08-16T09:33:10Z",
+      "last_run": "2026-08-16T09:44:50Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 75,
-      "duration_ms": 3399,
+      "successful_zero_streak": 76,
+      "duration_ms": 3471,
       "request_count": 4,
-      "last_success": "2026-08-16T09:33:10Z",
+      "last_success": "2026-08-16T09:44:50Z",
       "last_failure": "2026-08-15T18:37:24Z"
     },
     "Goldman Sachs Engineering": {
       "source_type": "goldman_higher",
-      "last_run": "2026-08-16T09:33:10Z",
+      "last_run": "2026-08-16T09:44:51Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 307,
+      "successful_zero_streak": 80,
+      "duration_ms": 276,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:10Z"
+      "last_success": "2026-08-16T09:44:51Z"
     },
     "D. E. Shaw": {
       "source_type": "deshaw",
-      "last_run": "2026-08-16T09:33:11Z",
+      "last_run": "2026-08-16T09:44:51Z",
       "success": true,
       "last_match_count": 9,
       "successful_zero_streak": 0,
-      "duration_ms": 665,
+      "duration_ms": 671,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:11Z"
+      "last_success": "2026-08-16T09:44:51Z"
     },
     "Point72": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:11Z",
+      "last_run": "2026-08-16T09:44:51Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 109,
+      "successful_zero_streak": 80,
+      "duration_ms": 117,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:11Z"
+      "last_success": "2026-08-16T09:44:51Z"
     },
     "IMC Trading": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:11Z",
+      "last_run": "2026-08-16T09:44:52Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 119,
+      "successful_zero_streak": 80,
+      "duration_ms": 103,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:11Z"
+      "last_success": "2026-08-16T09:44:52Z"
     },
     "AlphaGrep Securities": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:11Z",
+      "last_run": "2026-08-16T09:44:52Z",
       "success": true,
       "last_match_count": 1,
       "successful_zero_streak": 0,
-      "duration_ms": 111,
+      "duration_ms": 101,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:11Z"
+      "last_success": "2026-08-16T09:44:52Z"
     },
     "Graviton Research Capital": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:11Z",
+      "last_run": "2026-08-16T09:44:52Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 105,
+      "successful_zero_streak": 80,
+      "duration_ms": 115,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:11Z"
+      "last_success": "2026-08-16T09:44:52Z"
     },
     "Squarepoint Capital": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:11Z",
+      "last_run": "2026-08-16T09:44:52Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 78,
-      "duration_ms": 109,
+      "successful_zero_streak": 79,
+      "duration_ms": 114,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:11Z",
+      "last_success": "2026-08-16T09:44:52Z",
       "last_failure": "2026-08-14T11:50:37Z"
     },
     "PhonePe": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:11Z",
+      "last_run": "2026-08-16T09:44:52Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 115,
+      "successful_zero_streak": 80,
+      "duration_ms": 105,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:11Z"
+      "last_success": "2026-08-16T09:44:52Z"
     },
     "Cred": {
       "source_type": "lever",
-      "last_run": "2026-08-16T09:33:12Z",
+      "last_run": "2026-08-16T09:44:52Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 78,
-      "duration_ms": 389,
+      "successful_zero_streak": 79,
+      "duration_ms": 415,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:12Z",
+      "last_success": "2026-08-16T09:44:52Z",
       "last_failure": "2026-08-14T08:20:59Z"
     },
     "MindTickle": {
       "source_type": "lever",
-      "last_run": "2026-08-16T09:33:12Z",
+      "last_run": "2026-08-16T09:44:53Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 535,
+      "successful_zero_streak": 80,
+      "duration_ms": 703,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:12Z"
+      "last_success": "2026-08-16T09:44:53Z"
     },
     "Groww": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:13Z",
+      "last_run": "2026-08-16T09:44:53Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 105,
+      "successful_zero_streak": 80,
+      "duration_ms": 114,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:13Z"
+      "last_success": "2026-08-16T09:44:53Z"
     },
     "Meesho": {
       "source_type": "lever",
-      "last_run": "2026-08-16T09:33:15Z",
+      "last_run": "2026-08-16T09:44:54Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 2272,
+      "successful_zero_streak": 80,
+      "duration_ms": 657,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:15Z"
+      "last_success": "2026-08-16T09:44:54Z"
     },
     "InMobi": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:15Z",
-      "success": true,
-      "last_match_count": 1,
-      "successful_zero_streak": 0,
-      "duration_ms": 104,
-      "request_count": 1,
-      "last_success": "2026-08-16T09:33:15Z"
-    },
-    "Glance": {
-      "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:15Z",
+      "last_run": "2026-08-16T09:44:54Z",
       "success": true,
       "last_match_count": 1,
       "successful_zero_streak": 0,
       "duration_ms": 111,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:15Z"
+      "last_success": "2026-08-16T09:44:54Z"
+    },
+    "Glance": {
+      "source_type": "greenhouse",
+      "last_run": "2026-08-16T09:44:54Z",
+      "success": true,
+      "last_match_count": 1,
+      "successful_zero_streak": 0,
+      "duration_ms": 103,
+      "request_count": 1,
+      "last_success": "2026-08-16T09:44:54Z"
     },
     "Druva": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:15Z",
+      "last_run": "2026-08-16T09:44:54Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 122,
+      "successful_zero_streak": 80,
+      "duration_ms": 104,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:15Z"
+      "last_success": "2026-08-16T09:44:54Z"
     },
     "Razorpay": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:15Z",
+      "last_run": "2026-08-16T09:44:54Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 109,
+      "successful_zero_streak": 80,
+      "duration_ms": 110,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:15Z"
+      "last_success": "2026-08-16T09:44:54Z"
     },
     "Enterpret": {
       "source_type": "greenhouse",
-      "last_run": "2026-08-16T09:33:15Z",
+      "last_run": "2026-08-16T09:44:54Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 78,
-      "duration_ms": 102,
+      "successful_zero_streak": 79,
+      "duration_ms": 112,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:15Z",
+      "last_success": "2026-08-16T09:44:54Z",
       "last_failure": "2026-08-16T03:06:24Z"
     },
     "NVIDIA": {
       "source_type": "workday",
-      "last_run": "2026-08-16T09:33:16Z",
+      "last_run": "2026-08-16T09:44:55Z",
       "success": true,
       "last_match_count": 1,
       "successful_zero_streak": 0,
-      "duration_ms": 981,
+      "duration_ms": 862,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:16Z",
+      "last_success": "2026-08-16T09:44:55Z",
       "last_failure": "2026-08-15T06:48:45Z"
     },
     "Citi": {
       "source_type": "workday",
-      "last_run": "2026-08-16T09:33:19Z",
+      "last_run": "2026-08-16T09:44:58Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 77,
-      "duration_ms": 2743,
+      "successful_zero_streak": 78,
+      "duration_ms": 2732,
       "request_count": 3,
-      "last_success": "2026-08-16T09:33:19Z",
+      "last_success": "2026-08-16T09:44:58Z",
       "last_failure": "2026-08-15T07:35:55Z"
     },
     "BlackRock": {
       "source_type": "workday",
-      "last_run": "2026-08-16T09:33:22Z",
+      "last_run": "2026-08-16T09:45:01Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 77,
-      "duration_ms": 2903,
+      "successful_zero_streak": 78,
+      "duration_ms": 3376,
       "request_count": 9,
-      "last_success": "2026-08-16T09:33:22Z",
+      "last_success": "2026-08-16T09:45:01Z",
       "last_failure": "2026-08-15T07:35:55Z"
     },
     "Salesforce": {
       "source_type": "workday",
-      "last_run": "2026-08-16T09:33:24Z",
+      "last_run": "2026-08-16T09:45:04Z",
       "success": true,
       "last_match_count": 1,
       "successful_zero_streak": 0,
-      "duration_ms": 1865,
+      "duration_ms": 1361,
       "request_count": 2,
-      "last_success": "2026-08-16T09:33:24Z"
+      "last_success": "2026-08-16T09:45:04Z"
     },
     "Sprinklr": {
       "source_type": "workday",
-      "last_run": "2026-08-16T09:33:26Z",
+      "last_run": "2026-08-16T09:45:05Z",
       "success": true,
       "last_match_count": 2,
       "successful_zero_streak": 0,
-      "duration_ms": 1152,
+      "duration_ms": 1275,
       "request_count": 2,
-      "last_success": "2026-08-16T09:33:26Z",
+      "last_success": "2026-08-16T09:45:05Z",
       "last_failure": "2026-08-15T07:35:57Z"
     },
     "Fractal Analytics": {
       "source_type": "workday",
-      "last_run": "2026-08-16T09:33:27Z",
+      "last_run": "2026-08-16T09:45:06Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 77,
-      "duration_ms": 1007,
+      "successful_zero_streak": 78,
+      "duration_ms": 1126,
       "request_count": 2,
-      "last_success": "2026-08-16T09:33:27Z",
+      "last_success": "2026-08-16T09:45:06Z",
       "last_failure": "2026-08-15T07:35:57Z"
     },
     "Amazon": {
       "source_type": "amazon",
-      "last_run": "2026-08-16T09:33:27Z",
+      "last_run": "2026-08-16T09:45:07Z",
       "success": true,
       "last_match_count": 0,
-      "successful_zero_streak": 79,
-      "duration_ms": 736,
+      "successful_zero_streak": 80,
+      "duration_ms": 745,
       "request_count": 1,
-      "last_success": "2026-08-16T09:33:27Z"
+      "last_success": "2026-08-16T09:45:07Z"
     },
     "Goldman Sachs Summer Analyst India": {
       "source_type": "custom_page",
-      "last_run": "2026-08-16T05:46:56Z",
+      "last_run": "2026-08-16T09:45:32Z",
       "success": true,
       "last_match_count": 1,
       "successful_zero_streak": 0,
-      "duration_ms": 3865,
+      "duration_ms": 3864,
       "request_count": 1,
-      "last_success": "2026-08-16T05:46:56Z"
+      "last_success": "2026-08-16T09:45:32Z"
     },
     "Daksh Trading": {
       "source_type": "custom_page",
-      "last_run": "2026-08-16T05:47:05Z",
+      "last_run": "2026-08-16T09:45:41Z",
       "success": true,
       "last_match_count": 1,
       "successful_zero_streak": 0,
-      "duration_ms": 3586,
+      "duration_ms": 3717,
       "request_count": 1,
-      "last_success": "2026-08-16T05:47:05Z"
+      "last_success": "2026-08-16T09:45:41Z"
     }
   },
   "Anthropic Claude Campus (program monitor)": {
