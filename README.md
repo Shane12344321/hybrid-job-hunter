@@ -38,6 +38,9 @@ This script is built to run entirely on **GitHub Actions for free**, with zero i
 - Config-driven setup via `config.yaml`
 - Monitors multiple ATS APIs automatically
 - Uses headless Chromium via Playwright to fetch, render, and hash custom job boards
+- Hunts ATS sources concurrently (8 workers by default) with a two-source
+  politeness limit per ATS host; use top-level `concurrency:` or `--workers N`
+  to tune the worker pool.
 - CSS selector support to narrow down the monitored scope on custom pages
 - Smart Keyword Filtering (alerts only when keywords like "intern" appear)
 - Telegram Notifications
@@ -186,6 +189,9 @@ Useful flags:
 - `python hybrid_hunter.py --seed` — baseline mode: marks all currently open matching jobs and page hashes as "seen" without notifying. Run this once after adding new companies to `config.yaml` to avoid an alert flood on the first live run.
 - `python hybrid_hunter.py --test --company "Microsoft"` — run or seed one named source. `--company` is repeatable and accepts configured aliases; associated fallback/program monitors are included automatically.
 - `python hybrid_hunter.py --ats-only` / `--pages-only` — hunt only ATS boards (no browser needed) or only Playwright custom pages. The scheduled workflow uses `--ats-only` for the hourly runs.
+- `python hybrid_hunter.py --test --ats-only --workers 4` — override the ATS
+  worker count for a run; workers only fetch, while state updates and digest
+  assembly remain deterministic in configuration order.
 - `python hybrid_hunter.py --heartbeat` — send a read-only status report (sources, finds in last 24h/7d, failing sources). Does not hunt.
 - `python hybrid_hunter.py --help` — list every supported flag. An unrecognized
   flag aborts the run rather than being ignored, so a typo can't silently turn

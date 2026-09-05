@@ -3,6 +3,8 @@ import json
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -82,6 +84,63 @@ class TestHTTPRetry(unittest.TestCase):
                 mock.patch.object(hh, "sleep"):
             self.hunter._get("https://example.test")
         self.assertEqual(self.hunter.request_count, 2)
+
+
+class TestATSConcurrency(unittest.TestCase):
+    def test_same_vendor_is_limited_to_two_concurrent_sources(self):
+        active = 0
+        maximum = 0
+        lock = threading.Lock()
+
+        def fake_hunt(hunter, slug, keywords=None):
+            nonlocal active, maximum
+            with lock:
+                active += 1
+                maximum = max(maximum, active)
+            time.sleep(0.01)
+            with lock:
+                active -= 1
+            return [{"id": slug, "title": "Intern", "location": "India",
+                     "url": f"https://example.test/{slug}"}]
+
+        config = {"keywords": ["intern"], "locations": ["india"]}
+        comps = [{"name": f"Company {index}", "ats": "greenhouse",
+                  "slug": f"company-{index}"} for index in range(8)]
+        semaphores = {
+            hh.ats_request_group(comp): threading.Semaphore(2) for comp in comps
+        }
+        with mock.patch.object(hh.ATSHunter, "hunt_greenhouse", fake_hunt):
+            with hh.ThreadPoolExecutor(max_workers=8) as executor:
+                results = list(executor.map(
+                    lambda comp: hh._hunt_ats_entry(comp, config, semaphores), comps))
+        self.assertEqual(maximum, 2)
+        self.assertTrue(all(result["error"] is None for result in results))
+        self.assertEqual([result["matches"][0]["id"] for result in results],
+                         [comp["slug"] for comp in comps])
+
+    def test_worker_failures_are_isolated_and_results_are_reorderable(self):
+        config = {"keywords": ["intern"], "locations": ["india"]}
+        comps = [{"name": "First", "ats": "ashby", "slug": "first"},
+                 {"name": "Broken", "ats": "ashby", "slug": "broken"},
+                 {"name": "Last", "ats": "ashby", "slug": "last"}]
+        semaphores = {"ashby": threading.Semaphore(2)}
+
+        def fake_hunt(hunter, slug, keywords=None):
+            if slug == "broken":
+                raise RuntimeError("source down")
+            return [{"id": slug, "title": "Intern", "location": "India",
+                     "url": f"https://example.test/{slug}"}]
+
+        with mock.patch.object(hh.ATSHunter, "hunt_ashby", fake_hunt):
+            with hh.ThreadPoolExecutor(max_workers=3) as executor:
+                futures = [executor.submit(hh._hunt_ats_entry, comp, config, semaphores)
+                           for comp in comps]
+                results = [future.result() for future in futures]
+        self.assertEqual([result["comp"]["name"] for result in results],
+                         ["First", "Broken", "Last"])
+        self.assertIsNotNone(results[1]["error"])
+        self.assertEqual(results[0]["matches"][0]["id"], "first")
+        self.assertEqual(results[2]["matches"][0]["id"], "last")
 
 
 class TestStateAndDelivery(unittest.TestCase):
@@ -489,6 +548,7 @@ class TestCLIAndValidation(unittest.TestCase):
         self.assertEqual(hh.unknown_flags_from_argv([
             "--test", "--ats-only", "--company", "Adobe", "--company=Groww",
             "--shard-count", "2", "--shard-index=1", "--state-file", "s.json",
+            "--workers", "4",
         ]), [])
 
     def test_boolean_flags_reject_equals_values(self):

@@ -12,7 +12,9 @@ import time
 import calendar
 import uuid
 import tempfile
-from urllib.parse import urljoin
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urljoin, urlparse
 
 STATE_FILE = "state.json"
 TELEGRAM_MAX_LEN = 4096
@@ -25,6 +27,8 @@ HTTP_RETRY_ATTEMPTS = 3       # initial request plus two retries
 HTTP_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
 HTTP_RETRY_AFTER_CAP = 20
 sleep = time.sleep             # patchable in offline tests
+DEFAULT_CONCURRENCY = 8
+MAX_CONCURRENCY = 32
 
 
 def _parse_ts(ts):
@@ -1345,6 +1349,111 @@ def page_text_failure(text):
         return f"page contains error/block marker: {marker}"
     return None
 
+def ats_request_group(comp):
+    """Return a politeness group shared by sources on the same ATS host."""
+    ats_type = comp.get("ats", "unknown")
+    if ats_type in {"greenhouse", "ashby", "lever", "smartrecruiters", "workable"}:
+        return ats_type
+    if ats_type == "workday":
+        return f"workday:{comp.get('tenant', '')}.{comp.get('wd_host', 'wd5')}.myworkdayjobs.com"
+    if ats_type == "eightfold":
+        return f"eightfold:{urlparse(str(comp.get('base_url', ''))).netloc.casefold()}"
+    if ats_type == "oracle_hcm":
+        return f"oracle_hcm:{str(comp.get('host', '')).casefold()}"
+    if ats_type == "amazon":
+        return "amazon:amazon.jobs"
+    return ats_type
+
+
+def _hunt_ats_entry(comp, config, semaphores):
+    """Fetch one ATS source in a worker without touching shared state."""
+    hunter = ATSHunter(config)
+    started = time.monotonic()
+    try:
+        with semaphores[ats_request_group(comp)]:
+            ats_type = comp["ats"]
+            kw_override = comp.get("keywords")
+            if kw_override is not None:
+                kw_override = [k.lower() for k in kw_override]
+            if ats_type == "ashby":
+                matches = hunter.hunt_ashby(comp["slug"], keywords=kw_override)
+            elif ats_type == "lever":
+                matches = hunter.hunt_lever(comp["slug"], keywords=kw_override)
+            elif ats_type == "greenhouse":
+                matches = hunter.hunt_greenhouse(comp["slug"], keywords=kw_override)
+            elif ats_type == "smartrecruiters":
+                matches = hunter.hunt_smartrecruiters(
+                    company_id=comp["company_id"], country=comp.get("country"),
+                    query=comp.get("query"), queries=comp.get("queries"),
+                    keywords=kw_override)
+            elif ats_type == "workable":
+                matches = hunter.hunt_workable(comp["account"], keywords=kw_override)
+            elif ats_type == "oracle_hcm":
+                matches = hunter.hunt_oracle_hcm(
+                    site_number=comp.get("site_number", "CX_1001"),
+                    keyword=comp.get("keyword", "intern"),
+                    location_id=comp.get("location_id"), location=comp.get("location"),
+                    host=comp.get("host", "jpmc.fa.oraclecloud.com"),
+                    max_pages=comp.get("max_pages", 4), queries=comp.get("queries"),
+                    keywords=kw_override)
+            elif ats_type == "workday":
+                matches = hunter.hunt_workday(
+                    tenant=comp["tenant"], site=comp["site"],
+                    wd_host=comp.get("wd_host", "wd5"),
+                    search=comp.get("search", "intern"),
+                    include_multi_location=comp.get("include_multi_location", False),
+                    max_pages=comp.get("max_pages", 4), keywords=kw_override)
+            elif ats_type == "amazon":
+                matches = hunter.hunt_amazon(
+                    query=comp.get("query", "intern"),
+                    location=comp.get("location", "India"),
+                    categories=comp.get("categories"),
+                    country_code=comp.get("country_code", "IND"),
+                    keywords=kw_override)
+            elif ats_type == "atlassian":
+                matches = hunter.hunt_atlassian(
+                    location=comp.get("location", "India"),
+                    categories=comp.get("categories", ["Interns", "Graduates"]),
+                    keywords=kw_override)
+            elif ats_type == "microsoft":
+                matches = hunter.hunt_microsoft(
+                    query=comp.get("query", "intern"),
+                    location=comp.get("location", "India"), keywords=kw_override)
+            elif ats_type == "eightfold":
+                matches = hunter.hunt_eightfold(
+                    base_url=comp["base_url"], domain=comp["domain"],
+                    query=comp.get("query", "intern"),
+                    location=comp.get("location", "India"),
+                    seniority=comp.get("seniority"), keywords=kw_override)
+            elif ats_type == "google":
+                matches = hunter.hunt_google(
+                    query=comp.get("query", "intern"),
+                    location=comp.get("location", "India"), keywords=kw_override)
+            elif ats_type == "intuit":
+                matches = hunter.hunt_intuit(
+                    query=comp.get("query", "interns new college grads"),
+                    location=comp.get("location", "India"), keywords=kw_override)
+            elif ats_type == "goldman_higher":
+                matches = hunter.hunt_goldman(
+                    search=comp.get("search", "summer analyst"),
+                    location=comp.get("location", "India"), keywords=kw_override)
+            elif ats_type == "deshaw":
+                matches = hunter.hunt_deshaw(keywords=kw_override)
+            else:
+                raise ValueError(f"unknown ats type '{ats_type}'")
+        return {
+            "comp": comp, "matches": matches, "error": None,
+            "request_count": hunter.request_count,
+            "duration": time.monotonic() - started,
+        }
+    except Exception as exc:
+        return {
+            "comp": comp, "matches": None, "error": exc,
+            "request_count": hunter.request_count,
+            "duration": time.monotonic() - started,
+        }
+
+
 class CustomWebHunter:
     def __init__(self, config):
         self.keywords = [k.lower() for k in config.get("keywords", [])]
@@ -1761,6 +1870,11 @@ def validate_config(config):
     problems = []
     if not isinstance(config, dict):
         return ["config.yaml top level must be a mapping"]
+    concurrency = config.get("concurrency", DEFAULT_CONCURRENCY)
+    if (not isinstance(concurrency, int) or isinstance(concurrency, bool)
+            or not 1 <= concurrency <= MAX_CONCURRENCY):
+        problems.append(
+            f"concurrency must be an integer from 1 to {MAX_CONCURRENCY}")
     for key in ("keywords", "exclude_keywords", "locations", "exclude_locations"):
         value = config.get(key, [])
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
@@ -1986,6 +2100,7 @@ Scope:
   --ats-only            Skip Playwright-rendered custom pages
   --pages-only          Skip structured ATS adapters
   --company NAME        Restrict to one source (repeatable; accepts aliases)
+  --workers N            Maximum concurrent ATS sources (default 8)
 
 Sharding:
   --shard-count N       Split sources into N deterministic shards (default 1)
@@ -1999,9 +2114,11 @@ Sharding:
 KNOWN_FLAGS = {
     "--test", "--seed", "--validate", "--heartbeat", "--help", "-h",
     "--ats-only", "--pages-only", "--company",
-    "--shard-count", "--shard-index", "--state-file",
+    "--shard-count", "--shard-index", "--state-file", "--workers",
 }
-VALUE_FLAGS = {"--company", "--shard-count", "--shard-index", "--state-file"}
+VALUE_FLAGS = {
+    "--company", "--shard-count", "--shard-index", "--state-file", "--workers",
+}
 
 
 def unknown_flags_from_argv(argv):
@@ -2099,7 +2216,6 @@ def main():
         raise SystemExit(
             "❌ TELEGRAM_TOKEN and TELEGRAM_CHAT_ID are required for live and heartbeat runs; "
             "refusing to mark alerts as delivered")
-    ats_hunter = ATSHunter(config)
     custom_hunter = CustomWebHunter(config)
 
     if "--heartbeat" in sys.argv:
@@ -2168,127 +2284,57 @@ def main():
         print("\n📡 Hunting ATS boards...")
     else:
         print("\n📡 Skipping ATS boards (--pages-only)")
-    for comp in ats_companies:
-        name = comp["name"]
-        ats_type = comp["ats"]
-        slug = comp.get("slug", "")
-        source_started = time.monotonic()
-        ats_hunter.reset_request_count()
-        # Optional per-company keyword override (falls back to global keywords)
-        kw_override = comp.get("keywords")
-        if kw_override is not None:
-            kw_override = [k.lower() for k in kw_override]
-
+    concurrency = config.get("concurrency", DEFAULT_CONCURRENCY)
+    if not isinstance(concurrency, int) or isinstance(concurrency, bool) \
+            or not 1 <= concurrency <= MAX_CONCURRENCY:
+        raise SystemExit(
+            f"config concurrency must be an integer from 1 to {MAX_CONCURRENCY}")
+    worker_arg = option_value_from_argv(sys.argv[1:], "--workers")
+    if worker_arg is not None:
         try:
-            if ats_type == "ashby":
-                matches = ats_hunter.hunt_ashby(slug, keywords=kw_override)
-            elif ats_type == "lever":
-                matches = ats_hunter.hunt_lever(slug, keywords=kw_override)
-            elif ats_type == "greenhouse":
-                matches = ats_hunter.hunt_greenhouse(slug, keywords=kw_override)
-            elif ats_type == "smartrecruiters":
-                matches = ats_hunter.hunt_smartrecruiters(
-                    company_id=comp["company_id"],
-                    country=comp.get("country"),
-                    query=comp.get("query"),
-                    queries=comp.get("queries"),
-                    keywords=kw_override,
-                )
-            elif ats_type == "workable":
-                matches = ats_hunter.hunt_workable(
-                    account=comp["account"], keywords=kw_override)
-            elif ats_type == "oracle_hcm":
-                matches = ats_hunter.hunt_oracle_hcm(
-                    site_number=comp.get("site_number", "CX_1001"),
-                    keyword=comp.get("keyword", "intern"),
-                    location_id=comp.get("location_id"),
-                    location=comp.get("location"),
-                    host=comp.get("host", "jpmc.fa.oraclecloud.com"),
-                    max_pages=comp.get("max_pages", 4),
-                    queries=comp.get("queries"),
-                    keywords=kw_override
-                )
-            elif ats_type == "workday":
-                matches = ats_hunter.hunt_workday(
-                    tenant=comp["tenant"],
-                    site=comp["site"],
-                    wd_host=comp.get("wd_host", "wd5"),
-                    search=comp.get("search", "intern"),
-                    include_multi_location=comp.get("include_multi_location", False),
-                    max_pages=comp.get("max_pages", 4),
-                    keywords=kw_override
-                )
-            elif ats_type == "amazon":
-                matches = ats_hunter.hunt_amazon(
-                    query=comp.get("query", "intern"),
-                    location=comp.get("location", "India"),
-                    categories=comp.get("categories"),
-                    country_code=comp.get("country_code", "IND"),
-                    keywords=kw_override
-                )
-            elif ats_type == "atlassian":
-                matches = ats_hunter.hunt_atlassian(
-                    location=comp.get("location", "India"),
-                    categories=comp.get("categories", ["Interns", "Graduates"]),
-                    keywords=kw_override,
-                )
-            elif ats_type == "microsoft":
-                matches = ats_hunter.hunt_microsoft(
-                    query=comp.get("query", "intern"),
-                    location=comp.get("location", "India"),
-                    keywords=kw_override
-                )
-            elif ats_type == "eightfold":
-                matches = ats_hunter.hunt_eightfold(
-                    base_url=comp["base_url"],
-                    domain=comp["domain"],
-                    query=comp.get("query", "intern"),
-                    location=comp.get("location", "India"),
-                    seniority=comp.get("seniority"),
-                    keywords=kw_override,
-                )
-            elif ats_type == "google":
-                matches = ats_hunter.hunt_google(
-                    query=comp.get("query", "intern"),
-                    location=comp.get("location", "India"),
-                    keywords=kw_override,
-                )
-            elif ats_type == "intuit":
-                matches = ats_hunter.hunt_intuit(
-                    query=comp.get("query", "interns new college grads"),
-                    location=comp.get("location", "India"),
-                    keywords=kw_override,
-                )
-            elif ats_type == "goldman_higher":
-                matches = ats_hunter.hunt_goldman(
-                    search=comp.get("search", "summer analyst"),
-                    location=comp.get("location", "India"),
-                    keywords=kw_override,
-                )
-            elif ats_type == "deshaw":
-                matches = ats_hunter.hunt_deshaw(keywords=kw_override)
-            else:
-                print(f"  ⚠️ {name}: unknown ats type '{ats_type}'")
-                run_report.append((name, f"⚠️ unknown ats type '{ats_type}'"))
-                source_failures += 1
-                continue
-        except Exception as e:
-            print(f"  ❌ {name} ({ats_type}): {e}")
-            run_report.append((name, f"❌ {e}"))
+            concurrency = int(worker_arg)
+        except ValueError as exc:
+            raise SystemExit("--workers must be an integer") from exc
+        if not 1 <= concurrency <= MAX_CONCURRENCY:
+            raise SystemExit(f"--workers must be from 1 to {MAX_CONCURRENCY}")
+
+    semaphores = {}
+    for comp in ats_companies:
+        semaphores.setdefault(ats_request_group(comp), threading.Semaphore(2))
+    results = []
+    with ThreadPoolExecutor(max_workers=concurrency) as executor:
+        futures = {
+            executor.submit(_hunt_ats_entry, comp, config, semaphores): index
+            for index, comp in enumerate(ats_companies)
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            result["index"] = futures[future]
+            results.append(result)
+
+    # Workers complete out of order, but state/digest updates and the visible
+    # result table remain in config order for reproducible Actions summaries.
+    for result in sorted(results, key=lambda item: item["index"]):
+        comp = result["comp"]
+        name, ats_type = comp["name"], comp["ats"]
+        error = result["error"]
+        matches = result["matches"]
+        if error is not None:
+            print(f"  ❌ {name} ({ats_type}): {error}")
+            run_report.append((name, f"❌ {error}"))
             if not test_mode:
-                state_manager.record_failure(name, e)
+                state_manager.record_failure(name, error)
                 state_manager.record_source_run(
-                    name, ats_type, False, None,
-                    time.monotonic() - source_started,
-                    ats_hunter.request_count, reason=e)
+                    name, ats_type, False, None, result["duration"],
+                    result["request_count"], reason=error)
             source_failures += 1
             continue
 
         run_report.append((name, f"✅ {len(matches)} match(es)"))
         if not test_mode:
             state_manager.record_source_run(
-                name, ats_type, True, len(matches),
-                time.monotonic() - source_started, ats_hunter.request_count)
+                name, ats_type, True, len(matches), result["duration"],
+                result["request_count"])
             if state_manager.record_success(name):
                 recovered.append(name)
 
