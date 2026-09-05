@@ -111,6 +111,13 @@ This script is built to run entirely on **GitHub Actions for free**, with zero i
      `--append-new`; importing absent rows is opt-in so ordinary re-probes cannot
      grow the ledger unexpectedly. Then run
      `python3 add_source.py --batch candidates.yaml --sync-active` after onboarding.
+     A concrete posting URL can bootstrap a source without slug guessing:
+     `python3 add_source.py "Company" --from-job-url "https://..."`. For an
+     adapter not covered by a dedicated flag, use repeatable generic fields,
+     for example `--ats oracle_hcm --field host=... --field site_number=...`.
+     Large reviewed waves can run `--auto-approve-verified` with
+     `--review-out review.yaml`; this refreshes probes, keeps non-verified rows
+     in the review artifact, and remains dry-run-only until `--apply` is given.
    - Edit `config.yaml` to include your desired keywords, locations, ATS companies, and custom pages.
    - Enterprise boards (Workday / Amazon / Microsoft) are configured under the
      `ats_companies` list too. One example per new adapter type:
@@ -194,6 +201,9 @@ Useful flags:
   worker count for a run; workers only fetch, while state updates and digest
   assembly remain deterministic in configuration order.
 - `python hybrid_hunter.py --heartbeat` — send a read-only status report (sources, finds in last 24h/7d, failing sources). Does not hunt.
+- `python diagnose.py --suggest-selectors` — print human-verification-required
+  `job_selector`, `title_selector`, and (when inferable) `id_regex` snippets
+  from repeating rendered job-card structures.
 - `python hybrid_hunter.py --help` — list every supported flag. An unrecognized
   flag aborts the run rather than being ignored, so a typo can't silently turn
   an intended `--test` into a live alerting run.
