@@ -16,7 +16,72 @@ import hybrid_hunter as hh
 import testing_support
 
 setUpModule = testing_support.block_network
-tearDownModule = testing_support.restore_network
+_sleep_patcher = mock.patch.object(hh, "sleep")
+_sleep_patcher.start()
+
+
+def tearDownModule():
+    _sleep_patcher.stop()
+    testing_support.restore_network()
+
+
+class TestHTTPRetry(unittest.TestCase):
+    @staticmethod
+    def response(status, retry_after=None):
+        response = mock.Mock(status_code=status)
+        response.headers = {}
+        if retry_after is not None:
+            response.headers["Retry-After"] = retry_after
+        response.raise_for_status.side_effect = (
+            hh.requests.HTTPError(f"HTTP {status}") if status >= 400 else None)
+        return response
+
+    def setUp(self):
+        self.hunter = hh.ATSHunter({
+            "keywords": ["intern"], "exclude_keywords": [], "locations": ["india"],
+        })
+
+    def test_retries_transient_http_error_then_succeeds(self):
+        with mock.patch.object(hh.requests, "get", side_effect=[
+                self.response(503), self.response(200)]), \
+                mock.patch.object(hh, "sleep") as pause:
+            result = self.hunter._get("https://example.test")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(self.hunter.request_count, 2)
+        pause.assert_called_once_with(2)
+
+    def test_gives_up_after_three_attempts(self):
+        with mock.patch.object(hh.requests, "get", side_effect=[
+                self.response(503), self.response(503), self.response(503)]), \
+                mock.patch.object(hh, "sleep") as pause:
+            with self.assertRaises(hh.requests.HTTPError):
+                self.hunter._get("https://example.test")
+        self.assertEqual(self.hunter.request_count, 3)
+        self.assertEqual([call.args[0] for call in pause.call_args_list], [2, 4])
+
+    def test_does_not_retry_non_transient_http_error(self):
+        response = self.response(404)
+        with mock.patch.object(hh.requests, "get", return_value=response), \
+                mock.patch.object(hh, "sleep") as pause:
+            result = self.hunter._get("https://example.test")
+        self.assertIs(result, response)
+        self.assertEqual(self.hunter.request_count, 1)
+        pause.assert_not_called()
+
+    def test_honors_numeric_retry_after_with_cap(self):
+        with mock.patch.object(hh.requests, "get", side_effect=[
+                self.response(429, "27"), self.response(200)]), \
+                mock.patch.object(hh, "sleep") as pause:
+            self.hunter._get("https://example.test")
+        pause.assert_called_once_with(20.0)
+
+    def test_connection_retries_count_against_request_budget(self):
+        with mock.patch.object(
+                hh.requests, "get",
+                side_effect=[hh.requests.ConnectionError("reset"), self.response(200)]), \
+                mock.patch.object(hh, "sleep"):
+            self.hunter._get("https://example.test")
+        self.assertEqual(self.hunter.request_count, 2)
 
 
 class TestStateAndDelivery(unittest.TestCase):

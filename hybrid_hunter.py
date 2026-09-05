@@ -21,6 +21,10 @@ TELEGRAM_MAX_LEN = 4096
 API_HEADERS = {"Accept-Encoding": "gzip, deflate", "User-Agent": "Mozilla/5.0"}
 FAILURE_ALERT_THRESHOLD = 3   # consecutive failed runs before a ⚠️ alert
 MIN_PAGE_TEXT_CHARS = 200     # below this, a custom page is treated as blocked/broken
+HTTP_RETRY_ATTEMPTS = 3       # initial request plus two retries
+HTTP_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+HTTP_RETRY_AFTER_CAP = 20
+sleep = time.sleep             # patchable in offline tests
 
 
 def _parse_ts(ts):
@@ -408,12 +412,48 @@ class ATSHunter:
         self.request_count = 0
 
     def _get(self, *args, **kwargs):
-        self.request_count += 1
-        return requests.get(*args, **kwargs)
+        return self._request(requests.get, *args, **kwargs)
 
     def _post(self, *args, **kwargs):
-        self.request_count += 1
-        return requests.post(*args, **kwargs)
+        return self._request(requests.post, *args, **kwargs)
+
+    def _request(self, method, *args, **kwargs):
+        """Issue a request with bounded retries for transient failures.
+
+        Every attempt increments ``request_count`` because pagination budgets
+        describe actual network requests, not logical adapter calls. HTTP
+        responses are returned unchanged after the final attempt so each
+        adapter's existing ``raise_for_status`` path remains authoritative.
+        """
+        last_attempt = HTTP_RETRY_ATTEMPTS - 1
+        for attempt in range(HTTP_RETRY_ATTEMPTS):
+            self.request_count += 1
+            try:
+                response = method(*args, **kwargs)
+            except (requests.ConnectionError, requests.Timeout):
+                if attempt >= last_attempt:
+                    raise
+                sleep(min(2 ** (attempt + 1), 8))
+                continue
+
+            status = getattr(response, "status_code", None)
+            if status not in HTTP_RETRY_STATUS_CODES:
+                return response
+            if attempt >= last_attempt:
+                # Preserve the existing adapter failure path for the final
+                # transient HTTP response, while returning non-error responses
+                # untouched for callers that inspect them directly.
+                response.raise_for_status()
+                return response
+            retry_after = getattr(response, "headers", {}).get("Retry-After")
+            try:
+                delay = min(float(retry_after), HTTP_RETRY_AFTER_CAP)
+                if delay < 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                delay = min(2 ** (attempt + 1), 8)
+            sleep(delay)
+        raise AssertionError("unreachable retry loop")
 
     @staticmethod
     def _title_for_matching(title):
