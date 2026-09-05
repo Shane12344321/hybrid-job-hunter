@@ -135,6 +135,14 @@ def diagnose_page(browser, page_config, keywords, save_screenshot=False,
         page.close()
 
         soup = BeautifulSoup(content, "html.parser")
+        suggestions = suggest_selector_snippets(content, keywords) if suggest else []
+        if suggestions:
+            print("  💡 Selector suggestions (human verification required):")
+            for suggestion in suggestions:
+                print(yaml.safe_dump({key: suggestion[key] for key in (
+                    "job_selector", "title_selector", "id_regex")
+                    if suggestion.get(key) is not None},
+                    sort_keys=False, default_flow_style=False).rstrip())
 
         if css_selector:
             elements = soup.select(css_selector)
@@ -144,26 +152,8 @@ def diagnose_page(browser, page_config, keywords, save_screenshot=False,
             else:
                 text = ""
                 print(f"  ⚠️  CSS selector '{css_selector}' matched NOTHING")
-                if suggest:
-                    suggestions = suggest_selector_snippets(content, keywords)
-                    if suggestions:
-                        print("  💡 Selector suggestions (human verification required):")
-                        for suggestion in suggestions:
-                            print(yaml.safe_dump({key: suggestion[key] for key in (
-                                "job_selector", "title_selector", "id_regex")
-                                if suggestion.get(key) is not None},
-                                sort_keys=False, default_flow_style=False).rstrip())
         else:
             text = soup.body.get_text(separator=" ", strip=True) if soup.body else ""
-            if suggest:
-                suggestions = suggest_selector_snippets(content, keywords)
-                if suggestions:
-                    print("  💡 Selector suggestions (human verification required):")
-                    for suggestion in suggestions:
-                        print(yaml.safe_dump({key: suggestion[key] for key in (
-                            "job_selector", "title_selector", "id_regex")
-                            if suggestion.get(key) is not None},
-                            sort_keys=False, default_flow_style=False).rstrip())
 
         if wait_timed_out:
             zero_markers = page_config.get("zero_result_text") or []
