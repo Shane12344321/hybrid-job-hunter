@@ -75,12 +75,23 @@ def build_explicit_entry(args):
     if ats == "workday":
         if not (args.tenant and args.site):
             raise SystemExit("--ats workday requires --tenant and --site")
-        count = probe.check_workday(args.tenant, args.wd_host, args.site)
-        if count is None:
-            raise SystemExit(f"❌ Workday CXS verify failed (tenant={args.tenant}, "
-                             f"wd_host={args.wd_host}, site={args.site}) — not adding.")
-        return {"name": name, "ats": "workday", "tenant": args.tenant,
-                "wd_host": args.wd_host, "site": args.site}, count
+        search = args.search or probe.WORKDAY_SEARCH
+        entry, info = probe.workday_entry(
+            name, args.tenant, args.wd_host, args.site, search=search)
+        if entry is None:
+            raise SystemExit(f"❌ {info} — not adding.")
+        if args.max_pages is not None:
+            required_pages = max(
+                1, (info + probe.WORKDAY_PAGE_SIZE - 1) // probe.WORKDAY_PAGE_SIZE)
+            if not 1 <= args.max_pages <= probe.WORKDAY_MAX_PAGES:
+                raise SystemExit(
+                    f"--max-pages must be from 1 to {probe.WORKDAY_MAX_PAGES}")
+            if args.max_pages < required_pages:
+                raise SystemExit(
+                    f"❌ --max-pages {args.max_pages} cannot read all {info} postings; "
+                    f"at least {required_pages} page(s) are required.")
+            entry["max_pages"] = args.max_pages
+        return entry, info
     if ats == "eightfold":
         if not (args.base_url and args.domain):
             raise SystemExit("--ats eightfold requires --base-url and --domain")
@@ -101,6 +112,29 @@ def resolve_entry(args):
         entry, info = probe.probe_url(args.url, name=args.name)
         if not entry:
             raise SystemExit(f"❌ {info}")
+        identity_ok, identity_evidence = probe.check_entry_identity(args.name, entry)
+        if identity_ok is not True:
+            raise SystemExit(
+                "❌ The discovered board does not identify the intended company: "
+                f"{identity_evidence}")
+        if entry.get("ats") == "workday" and (args.search or args.max_pages is not None):
+            search = args.search or entry["search"]
+            entry, info = probe.workday_entry(
+                args.name, entry["tenant"], entry["wd_host"], entry["site"],
+                search=search)
+            if entry is None:
+                raise SystemExit(f"❌ {info} — not adding.")
+            if args.max_pages is not None:
+                required_pages = max(
+                    1, (info + probe.WORKDAY_PAGE_SIZE - 1) // probe.WORKDAY_PAGE_SIZE)
+                if not 1 <= args.max_pages <= probe.WORKDAY_MAX_PAGES:
+                    raise SystemExit(
+                        f"--max-pages must be from 1 to {probe.WORKDAY_MAX_PAGES}")
+                if args.max_pages < required_pages:
+                    raise SystemExit(
+                        f"❌ --max-pages {args.max_pages} cannot read all {info} postings; "
+                        f"at least {required_pages} page(s) are required.")
+                entry["max_pages"] = args.max_pages
         return entry, info
     print(f"Probing slug candidates: {', '.join(probe.slug_candidates(args.name))}")
     hits = probe.probe_name(args.name)
@@ -119,6 +153,13 @@ def resolve_entry(args):
             "refusing to guess the company identity. Review the hits, then use "
             f"`--ats {best['ats']} --slug {best['slug']}` only after confirming "
             "the board belongs to the intended company.")
+    identity_ok, identity_evidence = probe.check_board_identity(
+        args.name, best["ats"], best["slug"])
+    if identity_ok is not True:
+        raise SystemExit(
+            "❌ The board endpoint exists, but its identity could not be confirmed: "
+            f"{identity_evidence}. Review it, then use `--ats {best['ats']} "
+            f"--slug {best['slug']}` only if it belongs to the intended company.")
     return {"name": args.name, "ats": best["ats"], "slug": best["slug"]}, best["jobs"]
 
 
@@ -145,7 +186,7 @@ def run_hunter(flags, name):
     return ok, proc
 
 
-def batch_command(candidate, no_seed=False):
+def batch_command(candidate, no_seed=False, allow_empty=False):
     """Build a single-source command for a reviewed batch candidate."""
     if candidate.get("approved") is not True:
         return None, "not approved"
@@ -157,6 +198,11 @@ def batch_command(candidate, no_seed=False):
     url = candidate.get("careers_url")
     if url:
         command.extend(["--url", url])
+        if entry.get("ats") == "workday":
+            if entry.get("search"):
+                command.extend(["--search", str(entry["search"])])
+            if entry.get("max_pages"):
+                command.extend(["--max-pages", str(entry["max_pages"])])
     else:
         ats = entry.get("ats")
         command.extend(["--ats", str(ats)])
@@ -173,6 +219,10 @@ def batch_command(candidate, no_seed=False):
                 if not value:
                     return None, f"workday suggestion is missing {field}"
                 command.extend([flag, str(value)])
+            if entry.get("search"):
+                command.extend(["--search", str(entry["search"])])
+            if entry.get("max_pages"):
+                command.extend(["--max-pages", str(entry["max_pages"])])
         elif ats == "eightfold":
             for flag, field in (("--base-url", "base_url"), ("--domain", "domain")):
                 if not entry.get(field):
@@ -194,6 +244,8 @@ def batch_command(candidate, no_seed=False):
             return None, f"batch onboarding does not support explicit ats '{ats}'"
     if no_seed:
         command.append("--no-seed")
+    if allow_empty:
+        command.append("--allow-empty")
     category = candidate.get("category", "uncategorized")
     command.extend([
         "--comment",
@@ -202,7 +254,8 @@ def batch_command(candidate, no_seed=False):
     return command, None
 
 
-def run_batch(path, apply=False, no_seed=False, approved_names=None):
+def run_batch(path, apply=False, no_seed=False, approved_names=None,
+              allow_empty=False):
     """Review or apply explicitly approved candidates from a probe report."""
     try:
         candidates = probe.load_candidates(path)
@@ -214,12 +267,30 @@ def run_batch(path, apply=False, no_seed=False, approved_names=None):
     if unknown_approvals:
         raise SystemExit(
             "❌ --approve names not found in batch: " + ", ".join(sorted(unknown_approvals)))
+    active_names = set()
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, encoding="utf-8") as stream:
+                config = yaml.safe_load(stream) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            raise SystemExit(f"❌ Could not read {CONFIG_FILE}: {exc}") from exc
+        active_names = {
+            entry["name"].casefold()
+            for entry in ((config.get("ats_companies") or [])
+                          + (config.get("custom_pages") or []))
+            if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+        }
     commands = []
     skipped = []
     for candidate in candidates:
         if candidate["name"].casefold() in approved_names:
             candidate = {**candidate, "approved": True}
-        command, reason = batch_command(candidate, no_seed=no_seed)
+        if (candidate.get("approved") is True
+                and candidate["name"].casefold() in active_names):
+            skipped.append((candidate["name"], "already tracked"))
+            continue
+        command, reason = batch_command(
+            candidate, no_seed=no_seed, allow_empty=allow_empty)
         if command:
             commands.append((candidate["name"], command))
         else:
@@ -304,6 +375,10 @@ def main():
     parser.add_argument("--tenant")
     parser.add_argument("--site")
     parser.add_argument("--wd-host", default="wd5")
+    parser.add_argument("--search",
+                        help="Workday searchText (defaults to the narrow 'internship')")
+    parser.add_argument("--max-pages", type=int,
+                        help="Workday page budget (1-12; must cover the verified total)")
     parser.add_argument("--base-url")
     parser.add_argument("--domain")
     parser.add_argument("--company-id")
@@ -323,8 +398,9 @@ def main():
             parser.error("name cannot be combined with --batch")
         single_only = (
             args.url, args.ats, args.slug, args.tenant, args.site,
+            args.wd_host != "wd5", args.search, args.max_pages,
             args.base_url, args.domain, args.company_id, args.country, args.query,
-            args.account, args.comment, args.allow_empty,
+            args.account, args.comment,
         )
         if any(single_only):
             parser.error("single-source ATS flags cannot be combined with --batch")
@@ -335,7 +411,7 @@ def main():
             return
         run_batch(
             args.batch, apply=args.apply, no_seed=args.no_seed,
-            approved_names=args.approve)
+            approved_names=args.approve, allow_empty=args.allow_empty)
         return
     if args.apply:
         parser.error("--apply requires --batch")

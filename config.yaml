@@ -57,6 +57,10 @@ exclude_locations:
 - australia
 - japan
 - china
+# Measured across the full 370-source dry run on 2026-08-08: these drop only
+# two foreign "remote" false positives (Cribl/San Francisco and UiPath/Warsaw).
+- san francisco
+- warsaw
 
 telegram:
   # Do not put actual tokens here; use environment variables or GitHub secrets
@@ -93,9 +97,6 @@ ats_companies:
 - name: Together AI
   ats: greenhouse
   slug: togetherai  # inference cloud, 5 intern titles live
-- name: xAI
-  ats: greenhouse
-  slug: xai  # frontier lab, US-centric but free to poll
 - name: Cartesia
   ats: ashby
   slug: cartesia  # voice AI lab, intern + India-tagged roles
@@ -148,9 +149,6 @@ ats_companies:
 - name: Linear
   ats: ashby
   slug: linear
-- name: LinkedIn
-  ats: greenhouse
-  slug: linkedin
 - name: Atlassian
   ats: atlassian
   location: India
@@ -284,6 +282,9 @@ ats_companies:
 - name: IMC Trading
   ats: greenhouse
   slug: imc  # Mumbai HFT, 13 India intern titles live (IIT-targeted)
+  # The official IMC careers site links Greenhouse job 4439286101 on this
+  # board; its public payload uses the shorter trading name "IMC".
+  identity_aliases: [IMC]
 - name: AlphaGrep Securities
   ats: greenhouse
   slug: alphagrepsecurities  # India HFT (Bengaluru/Gurugram/Mumbai), SDE/quant interns
@@ -775,8 +776,900 @@ ats_companies:
 - name: SingleStore
   ats: greenhouse
   slug: singlestore
+# Batch-verified 2026-08-08; category: semiconductor.
+- name: Applied Materials
+  ats: eightfold
+  base_url: https://careers.appliedmaterials.com
+  domain: appliedmaterials.com
+  query: intern
+  location: India
+# Batch-verified 2026-08-08; category: semiconductor.
+- name: Lam Research
+  ats: eightfold
+  base_url: https://careers.lamresearch.com
+  domain: lamresearch.com
+  query: intern
+  location: India
+# Batch-verified 2026-08-08; category: semiconductor.
+- name: KLA
+  ats: workday
+  tenant: kla
+  wd_host: wd1
+  site: Search
+  search: internship
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Palo Alto Networks
+  ats: workday
+  tenant: paloaltonetworks
+  wd_host: wd5
+  site: panwexternalcareers
+  search: internship
+# India-filtered SmartRecruiters early-career queries; verified 2026-08-08.
+- name: Western Digital
+  ats: smartrecruiters
+  company_id: WesternDigital
+  country: in
+  queries:
+  - intern
+  - graduate
+  - apprentice
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Target
+  ats: workday
+  tenant: target
+  wd_host: wd5
+  site: targetcareers
+  search: internship
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Expedia Group
+  ats: workday
+  tenant: expedia
+  wd_host: wd108
+  site: search
+  search: internship
+# Batch-verified 2026-08-08; category: aerospace.
+- name: Boeing
+  ats: workday
+  tenant: boeing
+  wd_host: wd1
+  site: EXTERNAL_CAREERS
+  search: internship
+# Batch-verified 2026-08-08; category: finance.
+- name: Nasdaq
+  ats: workday
+  tenant: nasdaq
+  wd_host: wd1
+  site: Global_External_Site
+  search: internship
+# Batch-verified 2026-08-08; category: finance.
+- name: LSEG
+  ats: workday
+  tenant: lseg
+  wd_host: wd3
+  site: Careers
+  search: internship
+  max_pages: 7
+# Batch-verified 2026-08-08; category: services.
+- name: Genpact
+  ats: workday
+  tenant: genpact
+  wd_host: wd108
+  site: External_Careers
+  search: internship
+# Batch-verified 2026-08-08; category: services.
+- name: DXC Technology
+  ats: workday
+  tenant: dxctechnology
+  wd_host: wd1
+  site: DXCJobs
+  search: internship
+# Batch-verified 2026-08-08; category: fintech.
+- name: Paytm
+  ats: lever
+  slug: paytm
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: DevRev
+  ats: greenhouse
+  slug: devrev
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Agoda
+  ats: greenhouse
+  slug: agoda
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Spotify
+  ats: lever
+  slug: spotify
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Zapier
+  ats: ashby
+  slug: zapier
+# Batch-verified 2026-08-08; category: gaming.
+- name: Epic Games
+  ats: greenhouse
+  slug: epicgames
+# Batch-verified 2026-08-08; category: gaming.
+- name: Roblox
+  ats: greenhouse
+  slug: roblox
+# Batch-verified 2026-08-08; category: gaming.
+- name: Riot Games
+  ats: greenhouse
+  slug: riotgames
+# Batch-verified 2026-08-08; category: enterprise.
+- name: HighRadius
+  ats: greenhouse
+  slug: highradius
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Miro
+  ats: ashby
+  slug: miro
+# Batch-verified 2026-08-08; category: ai.
+- name: Langfuse
+  ats: ashby
+  slug: langfuse
+# Batch-verified 2026-08-08; category: ai.
+- name: Abridge
+  ats: ashby
+  slug: abridge
+# Batch-verified 2026-08-08; category: robotics.
+- name: Skydio
+  ats: ashby
+  slug: skydio
+# Batch-verified 2026-08-08; category: automotive.
+- name: Lucid Motors
+  ats: greenhouse
+  slug: lucidmotors
+# Batch-verified 2026-08-08; category: robotics.
+- name: Motional
+  ats: greenhouse
+  slug: motional
+# Batch-verified 2026-08-08; category: data.
+- name: Dataiku
+  ats: greenhouse
+  slug: dataiku
+# Batch-verified 2026-08-08; category: data.
+- name: Collibra
+  ats: greenhouse
+  slug: collibra
+# Batch-verified 2026-08-08; category: cloud.
+- name: Netlify
+  ats: greenhouse
+  slug: netlify
+# Batch-verified 2026-08-08; category: cloud.
+- name: Cloudinary
+  ats: lever
+  slug: cloudinary
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Contentful
+  ats: greenhouse
+  slug: contentful
+# Batch-verified 2026-08-08; category: data.
+- name: Neo4j
+  ats: greenhouse
+  slug: neo4j
+# Batch-verified 2026-08-08; category: data.
+- name: MotherDuck
+  ats: ashby
+  slug: motherduck
+# Batch-verified 2026-08-08; category: data.
+- name: Airbyte
+  ats: ashby
+  slug: airbyte
+# Batch-verified 2026-08-08; category: data.
+- name: Astronomer
+  ats: ashby
+  slug: astronomer
+# Batch-verified 2026-08-08; category: data.
+- name: Prefect
+  ats: ashby
+  slug: prefect
+# Batch-verified 2026-08-08; category: data.
+- name: Materialize
+  ats: ashby
+  slug: materialize
+# Batch-verified 2026-08-08; category: cloud.
+- name: Tailscale
+  ats: greenhouse
+  slug: tailscale
+# Batch-verified 2026-08-08; category: cloud.
+- name: Render
+  ats: ashby
+  slug: render
+# Batch-verified 2026-08-08; category: cloud.
+- name: Railway
+  ats: ashby
+  slug: railway
+# Batch-verified 2026-08-08; category: observability.
+- name: Honeycomb
+  ats: greenhouse
+  slug: honeycomb
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Kong
+  ats: ashby
+  slug: kong
+# Batch-verified 2026-08-08; category: cloud.
+- name: Canonical
+  ats: greenhouse
+  slug: canonical
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Smartsheet
+  ats: greenhouse
+  slug: smartsheet
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Klaviyo
+  ats: greenhouse
+  slug: klaviyo
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Braze
+  ats: greenhouse
+  slug: braze
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Outreach
+  ats: lever
+  slug: outreach
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Celonis
+  ats: greenhouse
+  slug: celonis
+# Batch-verified 2026-08-08; category: automation.
+- name: UiPath
+  ats: ashby
+  slug: uipath
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Coupa
+  ats: lever
+  slug: coupa
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Gusto
+  ats: greenhouse
+  slug: gusto
+# Batch-verified 2026-08-08; category: fintech.
+- name: Payoneer
+  ats: greenhouse
+  slug: payoneer
+# Batch-verified 2026-08-08; category: fintech.
+- name: Airwallex
+  ats: ashby
+  slug: airwallex
+# Batch-verified 2026-08-08; category: fintech.
+- name: Carta
+  ats: greenhouse
+  slug: carta
+# Batch-verified 2026-08-08; category: fintech.
+- name: Blend
+  ats: greenhouse
+  slug: blend
+# Batch-verified 2026-08-08; category: fintech.
+- name: Modern Treasury
+  ats: ashby
+  slug: moderntreasury
+# Batch-verified 2026-08-08; category: fintech.
+- name: Zeta
+  ats: lever
+  slug: zeta
+# Batch-verified 2026-08-08; category: security.
+- name: Cato Networks
+  ats: greenhouse
+  slug: catonetworks
+# Batch-verified 2026-08-08; category: security.
+- name: Huntress
+  ats: greenhouse
+  slug: huntress
+# Batch-verified 2026-08-08; category: security.
+- name: Dragos
+  ats: greenhouse
+  slug: dragos
+# Batch-verified 2026-08-08; category: security.
+- name: Axonius
+  ats: greenhouse
+  slug: axonius
+# Batch-verified 2026-08-08; category: security.
+- name: Torq
+  ats: greenhouse
+  slug: torq
+# Batch-verified 2026-08-08; category: security.
+- name: Chainguard
+  ats: greenhouse
+  slug: chainguard
+# Batch-verified 2026-08-08; category: security.
+- name: Illumio
+  ats: ashby
+  slug: illumio
+# Batch-verified 2026-08-08; category: security.
+- name: BeyondTrust
+  ats: greenhouse
+  slug: beyondtrust
+# Batch-verified 2026-08-08; category: security.
+- name: KnowBe4
+  ats: greenhouse
+  slug: knowbe4
+# Batch-verified 2026-08-08; category: security.
+- name: Sysdig
+  ats: lever
+  slug: sysdig
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Tripadvisor
+  ats: greenhouse
+  slug: tripadvisor
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Patreon
+  ats: ashby
+  slug: patreon
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Substack
+  ats: ashby
+  slug: substack
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Quora
+  ats: ashby
+  slug: quora
+# Batch-verified 2026-08-08; category: education.
+- name: Khan Academy
+  ats: greenhouse
+  slug: khanacademy
+# Batch-verified 2026-08-08; category: education.
+- name: Coursera
+  ats: greenhouse
+  slug: coursera
+# Batch-verified 2026-08-08; category: education.
+- name: Udemy
+  ats: greenhouse
+  slug: udemy
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Strava
+  ats: ashby
+  slug: strava
+# Batch-verified 2026-08-08; category: gaming.
+- name: Scopely
+  ats: greenhouse
+  slug: scopely
+# Batch-verified 2026-08-08; category: trading.
+# Tower Research is tracked above (same greenhouse slug); the batch pass
+# re-added it under its longer legal name, which would double-alert.
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Twitch
+  ats: greenhouse
+  slug: twitch
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: ngrok
+  ats: greenhouse
+  slug: ngrokinc
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Workday
+  ats: workday
+  tenant: workday
+  wd_host: wd5
+  site: Workday
+  search: internship
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Zendesk
+  ats: workday
+  tenant: zendesk
+  wd_host: wd1
+  site: zendesk
+  search: internship
+# Batch-verified 2026-08-08; category: fintech.
+- name: BlackLine
+  ats: workday
+  tenant: blackline
+  wd_host: wd108
+  site: BlackLineCareers
+  search: internship
+# Batch-verified 2026-08-08; category: security.
+- name: Proofpoint
+  ats: workday
+  tenant: proofpoint
+  wd_host: wd5
+  site: proofpointcareers
+  search: internship
+# Batch-verified 2026-08-08; category: gaming.
+- name: Zynga
+  ats: greenhouse
+  slug: zyngacareers
+# Batch-verified 2026-08-08; category: robotics.
+- name: Shield AI
+  ats: lever
+  slug: shieldai
+# Batch-verified 2026-08-08; category: robotics.
+- name: Applied Intuition
+  ats: ashby
+  slug: applied
+# Batch-verified 2026-08-08; category: data.
+- name: Alteryx
+  ats: workday
+  tenant: alteryx
+  wd_host: wd108
+  site: AlteryxCareers
+  search: internship
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Workiva
+  ats: workday
+  tenant: workiva
+  wd_host: wd503
+  site: careers
+  search: internship
+# Batch-verified 2026-08-08; category: enterprise.
+- name: ServiceTitan
+  ats: workday
+  tenant: servicetitan
+  wd_host: wd1
+  site: ServiceTitan
+  search: internship
+# Batch-verified 2026-08-08; category: security.
+- name: Darktrace
+  ats: workday
+  tenant: darktrace
+  wd_host: wd3
+  site: DarktaceExternal
+  search: internship
+# Batch-verified 2026-08-08; category: data.
+- name: Dagster Labs
+  ats: greenhouse
+  slug: dagsterlabs
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Deel
+  ats: ashby
+  slug: deel
+# Batch-verified 2026-08-08; category: india-product.
+- name: Scaler
+  ats: ashby
+  slug: scaler
+# Batch-verified 2026-08-08; category: gaming.
+- name: Niantic
+  ats: ashby
+  slug: niantic
+# Batch-verified 2026-08-08; category: ai.
+- name: Uniphore
+  ats: workday
+  tenant: uniphore
+  wd_host: wd503
+  site: Uniphore
+  search: internship
+# Batch-verified 2026-08-08; category: india-product.
+- name: Freshworks
+  ats: smartrecruiters
+  company_id: Freshworks
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Red Hat
+  ats: workday
+  tenant: redhat
+  wd_host: wd5
+  site: jobs
+  search: internship
+# Batch-verified 2026-08-08; category: consumer.
+- name: Unilever
+  ats: workday
+  tenant: unilever
+  wd_host: wd3
+  site: Unilever_Experienced_Professionals
+  search: internship
+# Batch-verified 2026-08-08; category: services.
+- name: Accenture
+  ats: workday
+  tenant: accenture
+  wd_host: wd103
+  site: AccentureCareers
+  search: internship
+  max_pages: 12
+# Batch-verified 2026-08-08; category: semiconductor.
+- name: Samsung Electronics
+  ats: workday
+  tenant: sec
+  wd_host: wd3
+  site: Samsung_Careers
+  search: internship
+# Batch-verified 2026-08-08; category: enterprise.
+- name: NTT Global Data Centers
+  ats: workday
+  tenant: nttglobaldatacenters
+  wd_host: wd501
+  site: External
+  search: internship
+# Batch-verified 2026-08-08; category: aerospace.
+- name: Rocket Lab
+  ats: greenhouse
+  slug: rocketlab
+# Batch-verified 2026-08-08; category: aerospace.
+- name: Astranis
+  ats: greenhouse
+  slug: astranis
+# Batch-verified 2026-08-08; category: aerospace.
+- name: Hermeus
+  ats: lever
+  slug: hermeus
+# Batch-verified 2026-08-08; category: robotics.
+- name: Wing
+  ats: greenhouse
+  slug: wing
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Ro
+  ats: lever
+  slug: ro
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Flatiron Health
+  ats: greenhouse
+  slug: flatironhealth
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Benchling
+  ats: ashby
+  slug: benchling
+# Batch-verified 2026-08-08; category: health-tech.
+- name: insitro
+  ats: ashby
+  slug: insitro
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Natera
+  ats: greenhouse
+  slug: natera
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Color Health
+  ats: ashby
+  slug: color-health
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Spring Health
+  ats: ashby
+  slug: spring-health
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Included Health
+  ats: lever
+  slug: includedhealth
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Calendly
+  ats: greenhouse
+  slug: calendly
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Webflow
+  ats: greenhouse
+  slug: webflow
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Mural
+  ats: ashby
+  slug: mural
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Loom
+  ats: ashby
+  slug: loom
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Attentive
+  ats: greenhouse
+  slug: attentive
+# Batch-verified 2026-08-08; category: enterprise.
+- name: ClickUp
+  ats: ashby
+  slug: clickup
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Sauce Labs
+  ats: greenhouse
+  slug: saucelabs
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: GitBook
+  ats: ashby
+  slug: gitbook
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Buildkite
+  ats: greenhouse
+  slug: buildkite
+# Batch-verified 2026-08-08; category: fintech.
+- name: Current
+  ats: greenhouse
+  slug: current
+# Batch-verified 2026-08-08; category: fintech.
+- name: Dave
+  ats: ashby
+  slug: dave
+# Batch-verified 2026-08-08; category: fintech.
+- name: Acorns
+  ats: ashby
+  slug: acorns
+# Batch-verified 2026-08-08; category: fintech.
+- name: Betterment
+  ats: greenhouse
+  slug: betterment
+# Batch-verified 2026-08-08; category: fintech.
+- name: Wealthfront
+  ats: lever
+  slug: wealthfront
+# Batch-verified 2026-08-08; category: fintech.
+- name: Coalition
+  ats: greenhouse
+  slug: coalition
+# Batch-verified 2026-08-08; category: fintech.
+- name: Earnest
+  ats: greenhouse
+  slug: earnest
+# Batch-verified 2026-08-08; category: fintech.
+- name: Upgrade
+  ats: greenhouse
+  slug: upgrade
+# Batch-verified 2026-08-08; category: commerce.
+- name: Faire
+  ats: greenhouse
+  slug: faire
+# Batch-verified 2026-08-08; category: commerce.
+- name: Flexport
+  ats: greenhouse
+  slug: flexport
+# Batch-verified 2026-08-08; category: commerce.
+- name: StockX
+  ats: greenhouse
+  slug: stockx
+# Batch-verified 2026-08-08; category: climate.
+- name: Redwood Materials
+  ats: greenhouse
+  slug: redwoodmaterials
+# Batch-verified 2026-08-08; category: climate.
+- name: Radiant
+  ats: ashby
+  slug: radiant
+# Batch-verified 2026-08-08; category: climate.
+- name: Oklo
+  ats: greenhouse
+  slug: oklo
+# Batch-verified 2026-08-08; category: climate.
+- name: Rondo Energy
+  ats: greenhouse
+  slug: rondoenergy
+# Batch-verified 2026-08-08; category: climate.
+- name: Twelve
+  ats: ashby
+  slug: twelve
+# Batch-verified 2026-08-08; category: biotech.
+- name: Ginkgo Bioworks
+  ats: greenhouse
+  slug: ginkgobioworks
+# Batch-verified 2026-08-08; category: biotech.
+- name: 10x Genomics
+  ats: greenhouse
+  slug: 10xgenomics
+# Batch-verified 2026-08-08; category: nonprofit.
+- name: Chan Zuckerberg Initiative
+  ats: greenhouse
+  slug: chanzuckerberginitiative
+# Batch-verified 2026-08-08; category: biotech.
+- name: Deep Genomics
+  ats: lever
+  slug: deepgenomics
+# Batch-verified 2026-08-08; category: biotech.
+- name: Arc Institute
+  ats: greenhouse
+  slug: arcinstitute
+# Batch-verified 2026-08-08; category: biotech.
+- name: Altos Labs
+  ats: greenhouse
+  slug: altoslabs
+# Batch-verified 2026-08-08; category: biotech.
+- name: Cellares
+  ats: lever
+  slug: cellares
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Roku
+  ats: greenhouse
+  slug: roku
+# Batch-verified 2026-08-08; category: adtech.
+- name: The Trade Desk
+  ats: greenhouse
+  slug: thetradedesk
+# Batch-verified 2026-08-08; category: adtech.
+- name: AppLovin
+  ats: greenhouse
+  slug: applovin
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Bumble
+  ats: ashby
+  slug: bumble
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Match Group
+  ats: lever
+  slug: matchgroup
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Thumbtack
+  ats: ashby
+  slug: thumbtack
+# Batch-verified 2026-08-08; category: consumer-tech.
+- name: Nextdoor
+  ats: greenhouse
+  slug: nextdoor
+# Batch-verified 2026-08-08; category: education.
+- name: Handshake
+  ats: ashby
+  slug: handshake
+# Batch-verified 2026-08-08; category: education.
+- name: GoGuardian
+  ats: greenhouse
+  slug: goguardian
+# Batch-verified 2026-08-08; category: education.
+- name: Newsela
+  ats: greenhouse
+  slug: newsela
+# Batch-verified 2026-08-08; category: commerce.
+- name: CloudKitchens
+  ats: ashby
+  slug: cloudkitchens
+# Batch-verified 2026-08-08; category: enterprise.
+- name: Motive
+  ats: greenhouse
+  slug: motive
+# Batch-verified 2026-08-08; category: aerospace.
+- name: Axiom Space
+  ats: workday
+  tenant: axiomspace
+  wd_host: wd5
+  site: External_Career_Site
+  search: internship
+# Batch-verified 2026-08-08; category: aerospace.
+- name: Mach Industries
+  ats: ashby
+  slug: mach
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Cityblock Health
+  ats: workday
+  tenant: cityblockhealth
+  wd_host: wd1
+  site: CityblockExternalCareerSite
+  search: internship
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Tempus AI
+  ats: workday
+  tenant: tempus
+  wd_host: wd5
+  site: Tempus_Careers
+  search: internship
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Recursion
+  ats: greenhouse
+  slug: recursionpharmaceuticals
+# Batch-verified 2026-08-08; category: health-tech.
+- name: Verily
+  ats: workday
+  tenant: verily
+  wd_host: wd1
+  site: Verily_Careers
+  search: internship
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Sourcegraph
+  ats: greenhouse
+  slug: sourcegraph91
+# Batch-verified 2026-08-08; category: developer-tools.
+- name: Harness
+  ats: greenhouse
+  slug: harnessinc
+# Batch-verified 2026-08-08; category: commerce.
+- name: GOAT
+  ats: greenhouse
+  slug: goatgroup
+# Batch-verified 2026-08-08; category: climate.
+- name: Commonwealth Fusion Systems
+  ats: lever
+  slug: cfsenergy
+# Batch-verified 2026-08-08; category: biotech.
+- name: Moderna
+  ats: workday
+  tenant: modernatx
+  wd_host: wd1
+  site: M_tx
+  search: internship
+# Batch-verified 2026-08-08; category: education.
+- name: Outschool
+  ats: greenhouse
+  slug: outschool
+# Batch-verified 2026-08-08; category: payload-review.
+# Perplexity is tracked above (same ashby slug); the batch pass re-added it
+# under a second name, which would double-alert.
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Figure AI
+  ats: greenhouse
+  slug: figureai
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Domino Data Lab
+  ats: greenhouse
+  slug: dominodatalab
+# Batch-verified 2026-08-08; category: payload-review.
+- name: ClickHouse
+  ats: ashby
+  slug: clickhouse
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Cribl
+  ats: greenhouse
+  slug: cribl
+# Batch-verified 2026-08-08; category: payload-review.
+- name: JetBrains
+  ats: greenhouse
+  slug: jetbrains
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Alloy
+  ats: greenhouse
+  slug: alloy
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Tanium
+  ats: greenhouse
+  slug: tanium
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Take-Two Interactive
+  ats: greenhouse
+  slug: taketwo
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Supercell
+  ats: ashby
+  slug: supercell
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Relativity Space
+  ats: greenhouse
+  slug: relativity
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Vast
+  ats: greenhouse
+  slug: vast
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Saronic Technologies
+  ats: ashby
+  slug: saronic
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Oscar Health
+  ats: greenhouse
+  slug: oscar
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Lyra Health
+  ats: lever
+  slug: lyrahealth
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Iterable
+  ats: ashby
+  slug: iterable
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Qualtrics
+  ats: greenhouse
+  slug: qualtrics
+# Batch-verified 2026-08-08; category: payload-review.
+- name: PostHog
+  ats: ashby
+  slug: posthog
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Lemonade
+  ats: ashby
+  slug: lemonade
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Watershed
+  ats: ashby
+  slug: watershed
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Form Energy
+  ats: ashby
+  slug: formenergy
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Helion Energy
+  ats: ashby
+  slug: helion
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Crusoe Energy
+  ats: ashby
+  slug: crusoe
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Generate Biomedicines
+  ats: greenhouse
+  slug: generatebiomedicines
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Guild
+  ats: greenhouse
+  slug: guild
+# Batch-verified 2026-08-08; category: payload-review.
+- name: OpenTable
+  ats: greenhouse
+  slug: opentable
+# Batch-verified 2026-08-08; category: payload-review.
+- name: Headspace
+  ats: greenhouse
+  slug: hs
 
 custom_pages:
+# The old greenhouse:linkedin slug is "LI Test Company", not LinkedIn. Track
+# LinkedIn's official India engineering-internship program page instead. It is
+# a landing page rather than a stable job-card board, so alert only after a
+# reproducible change within its stable #main content section.
+- name: LinkedIn
+  url: https://careers.linkedin.com/pathways-programs/internships/india-eng-internships
+  css_selector: '#main'
+  keyword_filter: false
+  location_filter: false
 # - name: Citadel
 #   url: https://www.citadel.com/careers/open-opportunities/
 #   keyword_filter: true

@@ -39,32 +39,81 @@ class StateManager:
         if os.path.exists(self.path):
             try:
                 with open(self.path, 'r') as f:
-                    self.state = json.load(f)
-                if not isinstance(self.state, dict):
+                    loaded = json.load(f)
+                if not isinstance(loaded, dict):
                     raise ValueError("top-level state must be a JSON object")
+                self._validate_shape(loaded)
+                self.state = loaded
             except (json.JSONDecodeError, OSError, ValueError) as e:
                 raise RuntimeError(
                     f"Could not load {self.path}; refusing to discard crawler state: {e}") from e
 
+    @staticmethod
+    def _validate_shape(state):
+        """Fail closed on structural drift. A malformed bucket would otherwise
+        be silently rewritten (data loss) or crash mid-run after alerts were
+        marked delivered (alert loss)."""
+        reserved_types = {
+            "_pending": list, "_failures": dict, "_health": dict, "_stats": dict,
+        }
+        for bucket, expected in reserved_types.items():
+            if bucket in state and not isinstance(state[bucket], expected):
+                raise ValueError(
+                    f"state bucket '{bucket}' must be a {expected.__name__}")
+        seen_keys = {}
+        for key, value in state.items():
+            if key.startswith("_"):
+                continue
+            if not isinstance(value, dict):
+                raise ValueError(f"source '{key}' must be a JSON object")
+            jobs = value.get("jobs")
+            if not isinstance(jobs, list):
+                raise ValueError(
+                    f"source '{key}' has malformed 'jobs' (must be a list)")
+            folded = key.casefold()
+            if folded in seen_keys:
+                raise ValueError(
+                    f"ambiguous case-insensitive source keys "
+                    f"'{seen_keys[folded]}' and '{key}' collide in state")
+            seen_keys[folded] = key
+
+    def _resolve(self, company):
+        """Map a source name onto its stored key, case-insensitively, so a
+        case-only rename (Microsoft -> MICROSOFT) keeps its history instead of
+        replaying the board. Exact and casefolded lookups."""
+        if company in self.state:
+            return company
+        folded = company.casefold()
+        for key in self.state:
+            if not key.startswith("_") and key.casefold() == folded:
+                return key
+        return company
+
     def _ensure(self, company):
+        company = self._resolve(company)
         if company not in self.state:
             self.state[company] = {"jobs": [], "hash": ""}
+        return company
 
     def is_new_job(self, company, job_id):
-        self._ensure(company)
+        company = self._ensure(company)
         return job_id not in self.state[company]["jobs"]
 
     def mark_job(self, company, job_id):
-        self._ensure(company)
-        if job_id not in self.state[company]["jobs"]:
-            self.state[company]["jobs"].append(job_id)
+        company = self._ensure(company)
+        entry = self.state[company]
+        if job_id not in entry["jobs"]:
+            entry["jobs"].append(job_id)
+            # First-seen timestamp enables expiry pruning (prune_expired_jobs)
+            # without changing the jobs list's shape or existing consumers.
+            entry.setdefault("seen", {}).setdefault(str(job_id), int(time.time()))
 
     def hash_changed(self, company, content_hash):
-        self._ensure(company)
+        company = self._ensure(company)
         return content_hash != self.state[company].get("hash")
 
     def set_hash(self, company, content_hash):
-        self._ensure(company)
+        company = self._ensure(company)
         self.state[company]["hash"] = content_hash
 
     def queue_alert(self, message):
@@ -500,13 +549,14 @@ class ATSHunter:
         requests_used = 0
         for term in search_terms:
             offset = 0
-            total = None
-            while total is None or offset < total:
+            expected_total = None
+            query_seen_ids = set()
+            while expected_total is None or offset < expected_total:
                 if requests_used >= 4:
                     label = term or "all postings"
                     raise RuntimeError(
                         f"SmartRecruiters pagination truncated for '{label}' "
-                        f"at {offset}/{total} after 4 shared requests")
+                        f"at {offset}/{expected_total} after 4 shared requests")
                 params = {"limit": limit, "offset": offset}
                 if country:
                     params["country"] = country
@@ -524,6 +574,11 @@ class ATSHunter:
                     total = int(payload["totalFound"])
                 except (TypeError, ValueError) as exc:
                     raise ValueError("SmartRecruiters totalFound is not an integer") from exc
+                # Trust the first page's total only. Some tenants report a
+                # reset total on later offsets; shortening the read here would
+                # make a partial page look complete.
+                if expected_total is None:
+                    expected_total = total
                 postings = payload["content"]
                 for posting in postings:
                     if (not isinstance(posting, dict)
@@ -542,6 +597,13 @@ class ATSHunter:
                     if (not job_id or not isinstance(title, str) or not title.strip()
                             or not location_text):
                         raise ValueError("SmartRecruiters posting missing id/name/location")
+                    # A repeated id inside one query's pages means broken
+                    # pagination (overlap), not a legitimate duplicate.
+                    if job_id in query_seen_ids:
+                        raise RuntimeError(
+                            f"SmartRecruiters pagination repeated posting {job_id}; "
+                            "refusing an incomplete read")
+                    query_seen_ids.add(job_id)
                     if job_id in seen_ids:
                         continue
                     seen_ids.add(job_id)
@@ -553,9 +615,9 @@ class ATSHunter:
                             "url": f"https://jobs.smartrecruiters.com/{company_id}/{job_id}",
                         })
                 offset += len(postings)
-                if not postings and offset < total:
+                if not postings and offset < expected_total:
                     raise RuntimeError(
-                        f"SmartRecruiters pagination stalled at {offset}/{total}")
+                        f"SmartRecruiters pagination stalled at {offset}/{expected_total}")
         return matches
 
     def hunt_workable(self, account, keywords=None):
@@ -570,7 +632,7 @@ class ATSHunter:
                 or not isinstance(payload.get("jobs"), list)):
             raise ValueError("Workable response missing name/jobs[]")
         matches = []
-        seen_ids = set()
+        seen_jobs = {}
         for job in payload["jobs"]:
             if not isinstance(job, dict):
                 raise ValueError("Workable jobs[] contained a non-object entry")
@@ -602,9 +664,16 @@ class ATSHunter:
             if (not job_id or not isinstance(title, str) or not title.strip()
                     or not isinstance(job_url, str) or not job_url or not location_text):
                 raise ValueError("Workable job missing shortcode/title/url/location")
-            if job_id in seen_ids:
+            # A shortcode reused for a different job is pagination/schema
+            # corruption; an identical repeat is just a duplicated row.
+            signature = (title, job_url)
+            if job_id in seen_jobs:
+                if seen_jobs[job_id] != signature:
+                    raise RuntimeError(
+                        "Workable reused a shortcode for conflicting jobs; "
+                        "refusing an ambiguous read")
                 continue
-            seen_ids.add(job_id)
+            seen_jobs[job_id] = signature
             if self.matches_criteria(title, location_text, keywords):
                 matches.append({
                     "id": job_id, "title": title,
@@ -890,16 +959,27 @@ class ATSHunter:
                 continue
             seen_ids[job_id] = signature
             location_text = ", ".join(value for value in locations if value)
-            location_match = not location or location.casefold() in location_text.casefold()
+            if not location_text.strip():
+                raise ValueError("Atlassian listing has an empty location")
+            # Word-boundary like location_matches elsewhere: a substring test
+            # matched "india" inside "Indiana, United States".
+            location_match = not location or bool(re.search(
+                r'\b' + re.escape(location) + r'\b', location_text, re.IGNORECASE))
             # `categories` is a shortcut, not a gate: a listing in a wanted
             # category counts even if its title carries no keyword, but a
             # keyword title still counts on its own. Requiring both meant that
             # when Atlassian dropped its Interns/Graduates categories — the
             # feed carried neither on 2026-08-02 — the source could never match
             # anything and still reported a healthy zero.
+            # Exclude-keywords gate BOTH paths: a wanted category must not
+            # smuggle in an explicitly excluded title ("PhD Graduate").
+            title_lower = self._title_for_matching(title)
+            excluded_title = any(
+                re.search(r'\b' + re.escape(k) + r'\b', title_lower)
+                for k in self.exclude_keywords)
             in_category = bool(wanted_categories) and category.casefold() in wanted_categories
             title_match = self.title_matches(title, keywords)
-            if location_match and (in_category or title_match):
+            if not excluded_title and location_match and (in_category or title_match):
                 matches.append({"id": job_id, "title": title, "location": location_text,
                                 "url": job_url})
         return matches
@@ -932,7 +1012,11 @@ class ATSHunter:
             if not isinstance(data, dict) or not isinstance(data.get("positions"), list) or "count" not in data:
                 raise ValueError("Eightfold response missing data.count/data.positions[]")
             positions = data["positions"]
-            total = int(data["count"])
+            # Trust the count from the first page only: some tenants report
+            # count=0 after the first offset, and overwriting here would make
+            # a partial read look complete.
+            if total is None:
+                total = int(data["count"])
             for job in positions:
                 if not isinstance(job, dict):
                     raise ValueError("Eightfold positions[] contained a non-object entry")
@@ -1039,7 +1123,7 @@ class ATSHunter:
         next_url = base_url
         matches = []
         page = 0
-        total = None
+        expected_total = None
         parsed_total = 0
         seen_job_ids = set()
         while next_url and page < 4:
@@ -1050,10 +1134,14 @@ class ATSHunter:
             results = soup.select_one("section#search-results")
             if not results or results.get("data-total-results") is None:
                 raise ValueError("Intuit search page missing recognized results metadata")
-            total = int(results["data-total-results"])
+            # TalentBrew can reset data-total-results on later offsets, even
+            # while still serving cards. The first page's total stays
+            # authoritative for both the zero check and truncation.
+            if expected_total is None:
+                expected_total = int(results["data-total-results"])
+                if expected_total == 0:
+                    return []
             cards = results.select("ul.search-list li a.sr-item[href]")
-            if total == 0:
-                return []
             if not cards:
                 raise ValueError("Intuit reported results but exposed no job cards")
             for card in cards:
@@ -1082,8 +1170,9 @@ class ATSHunter:
             next_link = results.select_one("nav.pagination a.next[href]:not(.disabled)")
             next_url = urljoin(base_url, next_link["href"]) if next_link else None
             params = None
-        if total is not None and parsed_total < total:
-            raise RuntimeError(f"Intuit results truncated ({parsed_total}/{total})")
+        if expected_total is not None and parsed_total < expected_total:
+            raise RuntimeError(
+                f"Intuit results truncated ({parsed_total}/{expected_total})")
         return matches
 
     def hunt_goldman(self, search="summer analyst", location="India", keywords=None):
@@ -1125,7 +1214,10 @@ class ATSHunter:
             result = payload.get("data", {}).get("roleSearch") if isinstance(payload, dict) else None
             if not isinstance(result, dict) or "totalCount" not in result or not isinstance(result.get("items"), list):
                 raise ValueError("Goldman Higher response missing roleSearch totalCount/items[]")
-            total = int(result["totalCount"])
+            # First page's totalCount is authoritative; later pages have been
+            # seen reporting 0 mid-pagination (same defect class as Workday).
+            if total is None:
+                total = int(result["totalCount"])
             items = result["items"]
             fetched += len(items)
             for job in items:
@@ -1251,6 +1343,8 @@ class CustomWebHunter:
         """Parse a rendered job board using selectors from custom-page config."""
         url = page_config["url"]
         job_selector = page_config["job_selector"]
+        keyword_filter = page_config.get("keyword_filter", False)
+        location_filter = page_config.get("location_filter", True)
         location_filter = page_config.get("location_filter", True)
         soup = BeautifulSoup(content, "html.parser")
         cards = soup.select(job_selector)
@@ -1307,8 +1401,17 @@ class CustomWebHunter:
                 job_id = job_url
             if not job_id:
                 raise ValueError("structured custom-page job has an empty stable id")
-            criteria_match = (self.criteria.matches_criteria(title, location_text)
-                              if location_filter else self.criteria.title_matches(title))
+            # Filters are independently configurable: each one applies its own
+            # check only when enabled, so (keyword_filter=False) must not
+            # silently drag the title check back in via matches_criteria.
+            if keyword_filter and location_filter:
+                criteria_match = self.criteria.matches_criteria(title, location_text)
+            elif keyword_filter:
+                criteria_match = self.criteria.title_matches(title)
+            elif location_filter:
+                criteria_match = self.criteria.location_matches(location_text)
+            else:
+                criteria_match = True
             if criteria_match:
                 jobs.append({"id": job_id, "title": title,
                              "location": location_text or "India (source-filtered)",
@@ -1513,19 +1616,25 @@ def shard_settings_from_argv(argv):
     return index, count, state_path
 
 
-def source_shard(entry, shard_count):
-    """Assign related sources to the same deterministic shard."""
-    key = (
-        entry.get("fallback_for")
-        or entry.get("supplement_for")
-        or entry.get("name", "")
-    ).casefold()
+def source_shard(entry, shard_count, alias_map=None):
+    """Assign related sources to the same deterministic shard. A relation
+    target written as an alias resolves to the canonical parent first, so a
+    parent and its monitors always hash to the same shard."""
+    raw = (entry.get("fallback_for")
+           or entry.get("supplement_for")
+           or entry.get("name", ""))
+    key = str(raw).casefold()
+    if alias_map:
+        resolved = alias_map.get(key)
+        if resolved:
+            key = resolved
     digest = hashlib.sha256(key.encode("utf-8")).digest()
     return int.from_bytes(digest[:8], "big") % shard_count
 
 
-def source_in_shard(entry, shard_index, shard_count):
-    return shard_count == 1 or source_shard(entry, shard_count) == shard_index
+def source_in_shard(entry, shard_index, shard_count, alias_map=None):
+    return (shard_count == 1
+            or source_shard(entry, shard_count, alias_map) == shard_index)
 
 
 def source_selected(entry, filters):
@@ -1538,12 +1647,45 @@ def source_selected(entry, filters):
 
 
 def resolve_company_filters(config, filters):
-    """Validate filters and expand aliases to their canonical source names."""
+    """Validate filters and expand aliases to their canonical source names.
+    A source tied to a selected parent via fallback_for/supplement_for rides
+    along, so `--company Atlassian` also hunts its fallback monitor."""
     if not filters:
         return []
     entries = list(config.get("ats_companies") or []) + list(config.get("custom_pages") or [])
     expanded = set(filters)
     unknown = []
+    canonical_names = set()
+    alias_map = {}
+    for entry in entries:
+        name = entry.get("name") if isinstance(entry, dict) else None
+        if not isinstance(name, str) or not name:
+            continue
+        canonical_names.add(name.casefold())
+        for alias in entry.get("aliases") or []:
+            if isinstance(alias, str) and alias:
+                alias_map.setdefault(alias.casefold(), name.casefold())
+
+    def canonical(value):
+        return value if value in canonical_names else alias_map.get(value)
+
+    # Related sources join the selection; a related source can itself be a
+    # parent (chained monitors), so iterate until the set stops growing.
+    changed = True
+    while changed:
+        changed = False
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            relation = entry.get("fallback_for") or entry.get("supplement_for")
+            if not isinstance(relation, str) or not relation:
+                continue
+            target = canonical(relation.casefold())
+            name = entry.get("name", "").casefold()
+            if target and target in expanded and name and name not in expanded:
+                expanded.add(name)
+                changed = True
+
     for value in filters:
         hits = []
         for entry in entries:
@@ -1583,6 +1725,12 @@ def validate_config(config):
         value = config.get(key, [])
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
             problems.append(f"{key} must be a list of strings")
+        elif any(not item.strip() for item in value):
+            # A whitespace-only keyword can never match a word boundary, so it
+            # is always a config typo — and an empty exclude_location would
+            # match every location and veto everything.
+            problems.append(
+                f"{key} must not contain empty or whitespace-only entries")
     telegram = config.get("telegram", {})
     if not isinstance(telegram, dict):
         problems.append("telegram must be a mapping")
@@ -1626,6 +1774,9 @@ def validate_config(config):
                 not isinstance(entry["keywords"], list)
                 or any(not isinstance(item, str) for item in entry["keywords"])):
             problems.append(f"{name}: keywords must be a list of strings")
+        elif "keywords" in entry and any(not item.strip() for item in entry["keywords"]):
+            problems.append(
+                f"{name}: keywords must not contain empty or whitespace-only entries")
         if "categories" in entry and (
                 not isinstance(entry["categories"], list)
                 or any(not isinstance(item, str) or not item for item in entry["categories"])):
@@ -1650,6 +1801,39 @@ def validate_config(config):
                 owner = aliases.setdefault(alias.casefold(), name)
                 if owner != name:
                     problems.append(f"duplicate alias '{alias}' used by {owner} and {name}")
+
+    # Two sources reading the same board under different names would each
+    # alert on the same job: dedup keys are (source name, job id), so a
+    # shared slug/tenant defeats job-level dedup entirely.
+    board_identities = {}
+    for entry in ats_entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+            continue
+        ats = entry.get("ats")
+        if ats in ("ashby", "lever", "greenhouse"):
+            key = (ats, str(entry.get("slug") or ""))
+        elif ats == "workday":
+            key = (ats, str(entry.get("tenant") or ""),
+                   str(entry.get("wd_host") or ""), str(entry.get("site") or ""))
+        elif ats == "eightfold":
+            key = (ats, str(entry.get("base_url") or "").rstrip("/"),
+                   str(entry.get("domain") or ""))
+        elif ats == "smartrecruiters":
+            # Same company_id scoped to different countries is legitimate;
+            # the country is part of what the adapter requests.
+            key = (ats, str(entry.get("company_id") or ""), str(entry.get("country") or ""))
+        elif ats == "workable":
+            key = (ats, str(entry.get("account") or ""))
+        elif ats == "oracle_hcm":
+            key = (ats, str(entry.get("host") or ""), str(entry.get("site_number") or ""))
+        else:
+            continue
+        board_identities.setdefault(key, []).append(entry["name"])
+    for key, names in sorted(board_identities.items()):
+        if len(names) > 1:
+            problems.append(
+                f"duplicate board target: {' and '.join(names)} "
+                f"all read {key[0]}:" + "/".join(part for part in key[1:]))
 
     for entry in custom_entries:
         if not isinstance(entry, dict):
@@ -1698,7 +1882,7 @@ def validate_config(config):
         if zero_markers is not None:
             if isinstance(zero_markers, str):
                 zero_markers = [zero_markers]
-            if not isinstance(zero_markers, list) or any(not isinstance(x, str) or not x for x in zero_markers):
+            if not isinstance(zero_markers, list) or any(not isinstance(x, str) or not x.strip() for x in zero_markers):
                 problems.append(f"{name}: zero_result_text must be a string or list of non-empty strings")
         for relation in ("fallback_for", "supplement_for"):
             if entry.get(relation):
@@ -1781,7 +1965,9 @@ VALUE_FLAGS = {"--company", "--shard-count", "--shard-index", "--state-file"}
 
 
 def unknown_flags_from_argv(argv):
-    """Return argv entries that are not accepted flags or their values."""
+    """Return argv entries that are not accepted flags or their values.
+    Boolean flags reject `=` forms outright: `--test=false` reads like a dry
+    run but is a typo'd invocation whose intent we cannot guess."""
     unknown = []
     skip_next = False
     for arg in argv:
@@ -1791,12 +1977,15 @@ def unknown_flags_from_argv(argv):
         if not arg.startswith("-"):
             unknown.append(arg)
             continue
-        name = arg.split("=", 1)[0]
+        name, equals, _ = arg.partition("=")
         if name not in KNOWN_FLAGS:
             unknown.append(arg)
             continue
-        if name in VALUE_FLAGS and "=" not in arg:
-            skip_next = True
+        if name in VALUE_FLAGS:
+            if not equals:
+                skip_next = True
+        elif equals:
+            unknown.append(arg)
     return unknown
 
 
@@ -1808,6 +1997,20 @@ def main():
     if unknown:
         raise SystemExit(
             "unknown argument(s): " + ", ".join(unknown) + "\n\n" + USAGE)
+
+    # Run modes are exclusive by definition: e.g. --seed after --test would
+    # silently turn a dry run into a state-writing baseline, so combining
+    # them must abort rather than let flag order decide.
+    mode_flags = [flag for flag in ("--test", "--seed", "--heartbeat")
+                  if flag in sys.argv]
+    if len(mode_flags) > 1:
+        raise SystemExit(
+            f"{' and '.join(mode_flags)} are mutually exclusive; pick one.\n\n" + USAGE)
+    scope_flags = [flag for flag in ("--ats-only", "--pages-only") if flag in sys.argv]
+    if len(scope_flags) > 1:
+        raise SystemExit(
+            f"{' and '.join(scope_flags)} are mutually exclusive: "
+            "together they select no sources.\n\n" + USAGE)
 
     test_mode = "--test" in sys.argv
     seed_mode = "--seed" in sys.argv
@@ -1882,6 +2085,10 @@ def main():
         print("="*60)
     else:
         state_manager.flush_pending(notifier)
+        # Checkpoint the flush immediately: a successful redelivery must be
+        # recorded before the crawl can fail, or a crash would resend the
+        # same alert next run (delivery-before-dedup, extended to retries).
+        state_manager.save()
 
     new_jobs = []       # matches to notify, marked seen only after delivery
     page_changes = []   # custom-page changes, hash saved only after delivery
@@ -1892,18 +2099,28 @@ def main():
     seeded_pages = 0
     source_failures = 0
 
+    # alias -> canonical owner name, so shard assignment can group a parent
+    # with monitors whose fallback_for/supplement_for is written as an alias.
+    alias_map = {}
+    for entry in list(config.get("ats_companies") or []) + list(config.get("custom_pages") or []):
+        owner = entry.get("name") if isinstance(entry, dict) else None
+        if isinstance(owner, str) and owner:
+            for entry_alias in entry.get("aliases") or []:
+                if isinstance(entry_alias, str) and entry_alias:
+                    alias_map.setdefault(entry_alias.casefold(), owner.casefold())
+
     # 1. Process ATS Companies
     ats_companies = (config.get("ats_companies") or []) if hunt_ats else []
     ats_companies = [entry for entry in ats_companies if source_selected(entry, company_filters)]
     ats_companies = [
         entry for entry in ats_companies
-        if source_in_shard(entry, shard_index, shard_count)
+        if source_in_shard(entry, shard_index, shard_count, alias_map)
     ]
     custom_pages = (config.get("custom_pages") or []) if hunt_pages else []
     custom_pages = [entry for entry in custom_pages if source_selected(entry, company_filters)]
     custom_pages = [
         entry for entry in custom_pages
-        if source_in_shard(entry, shard_index, shard_count)
+        if source_in_shard(entry, shard_index, shard_count, alias_map)
     ]
     if company_filters and not ats_companies and not custom_pages:
         raise SystemExit("no selected sources are enabled by the requested --ats-only/--pages-only mode")

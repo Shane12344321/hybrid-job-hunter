@@ -1,11 +1,14 @@
 # Company Coverage Expansion Plan
 
-The repository started this expansion at 84 sources. As of 2026-07-23 it
-tracks 175 verified sources: 170 structured ATS companies and 5 custom pages.
-The first 150-source milestone is complete, and structured coverage is 97.1%.
+The repository started this expansion at 84 sources. As of 2026-08-08 it
+tracks 370 verified sources: 364 structured ATS companies and 6 custom pages.
+The 300-source milestone is complete, and structured coverage is 98.4%.
 
-The objective is to reach 500 verified sources, then 1,000, without weakening
-failure detection, pagination limits, or delivery-before-dedup guarantees.
+The long-term objective is to reach 500 verified sources, then 1,000, without
+weakening failure detection, pagination limits, or delivery-before-dedup
+guarantees. Expansion is currently paused by request; maintenance and repair of
+the existing catalog take priority, and no new companies should be admitted
+until that direction changes.
 
 ## 1. Establish a candidate pipeline
 
@@ -137,7 +140,8 @@ that will unlock the largest verified batch.
 - [x] ATS fingerprint and blocked-ATS roadmap summaries
 - [x] Explicit approval-gated batch onboarding through probe, test, and seed
 - [x] Transactional rollback for failed tests and failed seeds
-- [x] First two candidate waves: 205 cataloged targets and 91 activated
+- [x] Five candidate waves plus enterprise and identity-review follow-up: 711
+  cataloged targets and 336 activated in the candidate ledger
 - [x] SmartRecruiters and Workable structured adapters with failure-contract
   tests
 - [x] Shared Chromium lifecycle and configurable per-source browser timeouts
@@ -147,7 +151,45 @@ that will unlock the largest verified batch.
   pending-delivery reporting
 - [x] GitHub Actions validation, expansion tests, manual shard controls,
   concurrency lock, and catalog summary
-- [ ] Reach 300 verified active sources
-- [ ] Reach 500 verified active sources
-- [ ] Reach 1,000 verified active sources
+- [x] Workday discovery defaults to narrow `search: internship`, computes the
+  complete page budget, and rejects boards above the 12-request ceiling
+- [x] Enterprise follow-up added Applied Materials, Lam Research, KLA, Palo
+  Alto Networks, and Western Digital through verified test-and-seed admission
+- [x] Third wave added 17 more verified sources; one unreadable Workday board
+  was rolled back instead of accepting a partial result set
+- [x] Slug identity checks reject exact-looking collisions (the `bcg` and `tcs`
+  slugs were unrelated companies) and large waves support a fast `--slug-only`
+  first stage
+- [x] Fourth wave plus its official-domain follow-ups added 75 verified
+  sources through the full test-and-seed gate, raising active
+  coverage from 196 to 271; nine structurally verified empty boards were
+  admitted with an explicit override so future openings are still detected
+- [x] Probe reports can append an explicitly requested new wave to the ledger;
+  ordinary evidence merges still cannot grow it unexpectedly
+- [x] Company-domain discovery rechecks the identity of every discovered slug
+  board; an unrelated Langfuse link on ClickHouse's site exposed and now
+  regression-tests this cross-company attribution failure
+- [x] Batch onboarding can explicitly forward `--allow-empty` for reviewed
+  boards; empty-source admission remains opt-in rather than a silent default
+- [x] Fifth wave and its official-domain/entity follow-ups added 74 verified
+  sources, raised active coverage from 271 to 345, and kept Samsung Electronics and
+  NTT Global Data Centers separate from misleading parent/research labels
+- [x] Payload-backed identity review resolved 27 existing candidates, then a
+  full live audit checked all 311 configured slug sources and exposed three
+  production collisions: xAI pointed to SpaceXAI, LinkedIn to LI Test Company,
+  and Remote to General Assembly Remote Jobs. The invalid entries were removed;
+  IMC Trading was retained only after its official job ID corroborated the
+  shorter `IMC` board identity. LinkedIn was migrated to its official India
+  engineering-internship page rather than dropped, leaving the frozen catalog
+  at 370 sources.
+- [x] Add a repeatable `probe.py --audit-config-identities` maintenance check;
+  all 308 remaining slug sources currently verify, all structured adapters pass
+  a full dry run (one transient OpenAI timeout passed on retry), and all six
+  custom pages pass Playwright verification
+- [x] Full-catalog output review added measured foreign-location vetoes for
+  `San Francisco` and `Warsaw`, removing the only two unintended remote matches
+  (Cribl and UiPath) without changing any other live match
+- [x] Reach 300 verified active sources
+- [ ] Reach 500 verified active sources (paused by request)
+- [ ] Reach 1,000 verified active sources (paused by request)
 - [ ] Implement additional ATS adapters in measured blocked-candidate order

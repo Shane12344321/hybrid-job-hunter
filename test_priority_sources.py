@@ -68,6 +68,25 @@ class TestEightfold(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "missing"):
                 hunter().hunt_microsoft()
 
+    def test_later_zero_count_cannot_shorten_the_first_page_total(self):
+        first_page = {"data": {"count": 3, "positions": [
+            {"id": 1, "name": "Software Intern",
+             "locations": ["Bengaluru, India"], "positionUrl": "/careers/job/1"},
+            {"id": 2, "name": "Data Intern",
+             "locations": ["Hyderabad, India"], "positionUrl": "/careers/job/2"},
+        ]}}
+        # Some tenants report count=0 after the first offset. That must not
+        # overwrite the first page's authoritative total and make two of three
+        # positions look like a complete read.
+        later_page = {"data": {"count": 0, "positions": []}}
+        get = mock.Mock(side_effect=[response(first_page), response(later_page)])
+        with mock.patch.object(hh.requests, "get", get):
+            with self.assertRaisesRegex(RuntimeError, r"truncated \(2/3\)"):
+                hunter().hunt_eightfold(
+                    "https://careers.example.test", "example.test",
+                    query="intern", location="India")
+        self.assertEqual(get.call_count, 2)
+
 
 class TestAtlassian(unittest.TestCase):
     def test_category_and_india_filter_with_stable_portal_id(self):
@@ -115,6 +134,16 @@ class TestAtlassian(unittest.TestCase):
                 location="India", categories=["Interns", "Graduates"])
         self.assertEqual([job["id"] for job in jobs], ["242:3"])
 
+    def test_wanted_category_cannot_bypass_excluded_title_keywords(self):
+        payload = [{"portalId": 242, "id": 31,
+                    "title": "Software Engineer, PhD Graduate",
+                    "locations": ["India - Bengaluru"], "category": "Graduates",
+                    "applyUrl": "https://example.test/31"}]
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            jobs = hunter(excludes=["phd"]).hunt_atlassian(
+                location="India", categories=["Interns", "Graduates"])
+        self.assertEqual(jobs, [])
+
     def test_location_still_gates_both_paths(self):
         payload = [{"portalId": 17, "id": 4, "title": "Summer Intern",
                     "locations": ["United States - New York"], "category": "Interns",
@@ -122,6 +151,24 @@ class TestAtlassian(unittest.TestCase):
         with mock.patch.object(hh.requests, "get", return_value=response(payload)):
             self.assertEqual(hunter().hunt_atlassian(
                 location="India", categories=["Interns", "Graduates"]), [])
+
+    def test_india_filter_does_not_match_indiana_in_the_us(self):
+        payload = [{"portalId": 17, "id": 41, "title": "Software Intern",
+                    "locations": ["Indiana, United States"], "category": "Interns",
+                    "applyUrl": "https://example.test/41"}]
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            jobs = hunter().hunt_atlassian(
+                location="India", categories=["Interns", "Graduates"])
+        self.assertEqual(jobs, [])
+
+    def test_empty_locations_is_malformed_not_a_healthy_zero(self):
+        payload = [{"portalId": 242, "id": 42, "title": "Software Intern",
+                    "locations": [], "category": "Interns",
+                    "applyUrl": "https://example.test/42"}]
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            with self.assertRaisesRegex(ValueError, "location"):
+                hunter().hunt_atlassian(
+                    location="India", categories=["Interns", "Graduates"])
 
     def test_malformed_listing_fails_instead_of_zero(self):
         with mock.patch.object(hh.requests, "get", return_value=response([{"id": 1}])):
@@ -175,6 +222,41 @@ class TestIntuit(unittest.TestCase):
         html = '<section id="search-results" data-total-results="0"></section>'
         with mock.patch.object(hh.requests, "get", return_value=response(text=html)):
             self.assertEqual(hunter().hunt_intuit(), [])
+
+    @staticmethod
+    def page(total, job_id=None, next_page=False):
+        card = ""
+        if job_id is not None:
+            card = f"""
+              <ul class="search-list"><li><a class="sr-item" data-title="Software Intern"
+                 href="/job/bengaluru/software-intern/27595/{job_id}">
+                 <h2>Software Intern</h2><span class="job-location">Bengaluru, India</span>
+              </a></li></ul>
+            """
+        pagination = ('<nav class="pagination"><a class="next" '
+                      'href="/search-jobs/page/2">Next</a></nav>') if next_page else ""
+        return (f'<section id="search-results" data-total-results="{total}">'
+                f'{card}{pagination}</section>')
+
+    def test_later_zero_total_does_not_discard_a_complete_read(self):
+        pages = [
+            response(text=self.page(2, "1001", next_page=True)),
+            # TalentBrew can reset the total on later offsets even while still
+            # returning cards. The first page's total remains authoritative.
+            response(text=self.page(0, "1002")),
+        ]
+        with mock.patch.object(hh.requests, "get", side_effect=pages):
+            jobs = hunter().hunt_intuit()
+        self.assertEqual([job["id"] for job in jobs], ["1001", "1002"])
+
+    def test_later_zero_total_cannot_make_a_partial_read_healthy(self):
+        pages = [
+            response(text=self.page(3, "1001", next_page=True)),
+            response(text=self.page(0, "1002")),
+        ]
+        with mock.patch.object(hh.requests, "get", side_effect=pages):
+            with self.assertRaisesRegex(RuntimeError, r"truncated \(2/3\)"):
+                hunter().hunt_intuit()
 
 
 class TestOracle(unittest.TestCase):
@@ -262,6 +344,18 @@ class TestGoldman(unittest.TestCase):
         self.assertEqual(jobs[0]["id"], "170619_GS_CAMPUS")
         self.assertEqual(jobs[0]["url"], "https://higher.gs.com/roles/170619_GS_CAMPUS")
 
+    def test_later_zero_total_cannot_shorten_the_first_page_total(self):
+        first_page = {"data": {"roleSearch": {"totalCount": 2, "items": [{
+            "roleId": "first", "jobTitle": "Summer Analyst",
+            "locations": [{"city": "Mumbai", "country": "India"}],
+        }]}}}
+        later_page = {"data": {"roleSearch": {"totalCount": 0, "items": []}}}
+        post = mock.Mock(side_effect=[response(first_page), response(later_page)])
+        with mock.patch.object(hh.requests, "post", post):
+            with self.assertRaisesRegex(RuntimeError, r"truncated \(1/2\)"):
+                hunter(keywords=["summer"]).hunt_goldman()
+        self.assertEqual(post.call_count, 2)
+
 
 class TestDEShaw(unittest.TestCase):
     def test_worldwide_internships_and_internal_false_positive(self):
@@ -300,6 +394,36 @@ class TestAtlassianStructuredFallback(unittest.TestCase):
         self.assertEqual(self.parser.parse_structured_jobs("<body>No jobs found</body>", self.config), {"jobs": []})
         broken = self.parser.parse_structured_jobs("<body>Navigation only</body>", self.config)
         self.assertIn("failed", broken)
+
+    def test_keyword_and_location_filters_are_independently_configurable(self):
+        content = """<body>
+          <article class="job"><a class="link" href="/jobs/1"><span class="title">Software Intern</span></a><span class="location">Bengaluru, India</span></article>
+          <article class="job"><a class="link" href="/jobs/2"><span class="title">Software Intern</span></a><span class="location">London, UK</span></article>
+          <article class="job"><a class="link" href="/jobs/3"><span class="title">Software Engineer</span></a><span class="location">Bengaluru, India</span></article>
+          <article class="job"><a class="link" href="/jobs/4"><span class="title">Software Engineer</span></a><span class="location">London, UK</span></article>
+        </body>"""
+        base_config = {
+            "url": "https://example.test/careers",
+            "job_selector": "article.job", "link_selector": "a.link",
+            "title_selector": ".title", "job_location_selector": ".location",
+            "id_regex": r"/jobs/(\d+)",
+        }
+        expected = {
+            (True, True): ["1"],
+            (True, False): ["1", "2"],
+            (False, True): ["1", "3"],
+            (False, False): ["1", "2", "3", "4"],
+        }
+        for filters, expected_ids in expected.items():
+            keyword_filter, location_filter = filters
+            with self.subTest(keyword_filter=keyword_filter,
+                              location_filter=location_filter):
+                result = self.parser.parse_structured_jobs(content, {
+                    **base_config,
+                    "keyword_filter": keyword_filter,
+                    "location_filter": location_filter,
+                })
+                self.assertEqual([job["id"] for job in result["jobs"]], expected_ids)
 
 
 class TestCustomPageRobustness(unittest.TestCase):

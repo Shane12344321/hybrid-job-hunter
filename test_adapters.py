@@ -133,6 +133,34 @@ class TestSmartRecruiters(unittest.TestCase):
                 self.hunter.hunt_smartrecruiters("Example")
         self.assertEqual(get.call_count, 4)
 
+    def test_later_total_zero_cannot_shorten_the_read(self):
+        first_page = [{
+            "id": str(index), "name": "Senior Engineer",
+            "location": {"country": "India"},
+        } for index in range(100)]
+        get = mock.Mock(side_effect=[
+            _resp(200, {"totalFound": 101, "content": first_page}),
+            _resp(200, {"totalFound": 0, "content": []}),
+        ])
+        with mock.patch.object(hh.requests, "get", get):
+            with self.assertRaisesRegex(RuntimeError, "stalled|truncated"):
+                self.hunter.hunt_smartrecruiters("Example")
+        self.assertEqual(get.call_count, 2)
+
+    def test_same_query_duplicate_page_overlap_raises(self):
+        first_page = [{
+            "id": str(index), "name": "Senior Engineer",
+            "location": {"country": "India"},
+        } for index in range(100)]
+        get = mock.Mock(side_effect=[
+            _resp(200, {"totalFound": 101, "content": first_page}),
+            _resp(200, {"totalFound": 101, "content": [first_page[0]]}),
+        ])
+        with mock.patch.object(hh.requests, "get", get):
+            with self.assertRaisesRegex(RuntimeError, "repeated|overlap"):
+                self.hunter.hunt_smartrecruiters("Example")
+        self.assertEqual(get.call_count, 2)
+
 
 class TestWorkable(unittest.TestCase):
     def setUp(self):
@@ -184,6 +212,24 @@ class TestWorkable(unittest.TestCase):
         }
         with mock.patch.object(hh.requests, "get", return_value=_resp(200, payload)):
             with self.assertRaisesRegex(ValueError, "shortcode"):
+                self.hunter.hunt_workable("example")
+
+    def test_conflicting_duplicate_stable_id_raises(self):
+        payload = {
+            "name": "Example",
+            "jobs": [{
+                "shortcode": "ABC123", "title": "Senior Engineer",
+                "url": "https://apply.workable.com/j/ABC123",
+                "country": "India", "city": "Pune",
+            }, {
+                "shortcode": "ABC123", "title": "Software Engineering Intern",
+                "url": "https://apply.workable.com/j/ABC123",
+                "country": "India", "city": "Bengaluru",
+            }],
+        }
+        with mock.patch.object(hh.requests, "get", return_value=_resp(200, payload)):
+            with self.assertRaisesRegex(
+                    (ValueError, RuntimeError), "conflicting|reused|repeated"):
                 self.hunter.hunt_workable("example")
 
 

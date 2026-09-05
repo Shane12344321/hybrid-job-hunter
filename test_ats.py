@@ -83,12 +83,16 @@ class TestLocationMatching(unittest.TestCase):
         self.assertTrue(h.location_matches("New Delhi, India"))
 
     def test_remote_is_kept_but_foreign_remote_is_dropped(self):
-        h = self.hunter()
+        h = self.hunter(exclude_locations=[
+            "usa", "united states", "emea", "san francisco", "warsaw",
+        ])
         self.assertTrue(h.location_matches("Remote"))
         self.assertTrue(h.location_matches("Remote - India"))
         self.assertFalse(h.location_matches("USA | Remote"))
         self.assertFalse(h.location_matches("Remote - United States"))
         self.assertFalse(h.location_matches("Remote, EMEA"))
+        self.assertFalse(h.location_matches("Remote - San Francisco, California"))
+        self.assertFalse(h.location_matches("Remote-Warsaw"))
 
     def test_exclude_locations_beats_an_otherwise_valid_city(self):
         h = self.hunter()

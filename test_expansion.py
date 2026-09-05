@@ -69,7 +69,7 @@ class TestCandidateLedger(unittest.TestCase):
                 {"name": "First"}, {"name": "Second"},
             ]}, stream)
 
-        def fake_probe(candidate):
+        def fake_probe(candidate, use_derived_domains=True):
             return {
                 **candidate, "status": "probed", "probe_status": "verified_endpoint",
                 "suggested_entry": {
@@ -88,7 +88,7 @@ class TestCandidateLedger(unittest.TestCase):
                 probe, "probe_name_detailed",
                 return_value=([], ["greenhouse/example: connection failed"])), \
                 mock.patch.object(probe, "probe_derived_domains",
-                                  return_value=(None, None, None, None, [])):
+                                  return_value=(None, None, None, None, [], [])):
             result = probe.probe_candidate(candidate)
         self.assertEqual(result["probe_status"], "failed")
         self.assertIn("unreliable", result["reason"])
@@ -110,7 +110,7 @@ class TestCandidateLedger(unittest.TestCase):
                 mock.patch.object(
                     probe, "probe_derived_domains",
                     return_value=(entry, 7, "example.com",
-                                  "https://apply.workable.com/example", [])):
+                                  "https://apply.workable.com/example", [], [])):
             result = probe.probe_candidate({"name": "Example", "status": "candidate"})
         self.assertEqual(result["probe_status"], "verified_endpoint")
         self.assertEqual(result["suggested_entry"], entry)
@@ -125,20 +125,247 @@ class TestCandidateLedger(unittest.TestCase):
                 mock.patch.object(
                     probe, "probe_derived_domains",
                     return_value=(None, None, None, None,
-                                  ["groq.ai: NXDOMAIN", "groq.io: NXDOMAIN"])):
+                                  ["groq.ai: NXDOMAIN", "groq.io: NXDOMAIN"], [])):
             result = probe.probe_candidate({"name": "Groq", "status": "candidate"})
         self.assertEqual(result["probe_status"], "not_found")
         self.assertIn("derived domains", result["reason"])
         self.assertTrue(any("NXDOMAIN" in w for w in result["warnings"]))
 
+    def test_derived_domain_retains_unsupported_ats_for_roadmap(self):
+        blocked = [{
+            "ats": "icims", "company_domain": "example.com",
+            "careers_url": "https://example.icims.com/jobs/search",
+            "reason": "URL not recognized as a supported ATS",
+        }]
+        with mock.patch.object(probe, "probe_name_detailed", return_value=([], [])), \
+                mock.patch.object(
+                    probe, "probe_derived_domains",
+                    return_value=(None, None, None, None, [], blocked)):
+            result = probe.probe_candidate({"name": "Example", "status": "candidate"})
+        self.assertEqual(result["probe_status"], "unsupported")
+        self.assertEqual(result["unsupported_ats"], "icims")
+        self.assertEqual(result["company_domain"], "example.com")
+
     def test_lossy_single_word_slug_requires_identity_review(self):
         candidate = {"name": "Pine Labs", "status": "candidate"}
         with mock.patch.object(
                 probe, "probe_name_detailed",
-                return_value=([{"ats": "greenhouse", "slug": "pine", "jobs": 10}], [])):
+                return_value=([{"ats": "greenhouse", "slug": "pine", "jobs": 10}], [])), \
+                mock.patch.object(
+                    probe, "check_board_identity",
+                    return_value=(False, "Jobs at Pine Services")):
             result = probe.probe_candidate(candidate)
         self.assertEqual(result["probe_status"], "needs_review")
         self.assertIn("lossy slug", result["warnings"][0])
+
+    def test_exact_slug_identity_mismatch_requires_review(self):
+        candidate = {"name": "TCS", "status": "candidate"}
+        with mock.patch.object(
+                probe, "probe_name_detailed",
+                return_value=([{"ats": "greenhouse", "slug": "tcs", "jobs": 94}], [])), \
+                mock.patch.object(
+                    probe, "check_board_identity",
+                    return_value=(False, "Jobs at Thornbury Community Services")):
+            result = probe.probe_candidate(candidate)
+        self.assertEqual(result["probe_status"], "needs_review")
+        self.assertIn("Thornbury", result["warnings"][0])
+
+    def test_board_identity_does_not_treat_the_slug_url_as_evidence(self):
+        response = mock.Mock(
+            status_code=200,
+            url="https://job-boards.greenhouse.io/tcs",
+            text="<title>Jobs at Thornbury Community Services</title>",
+        )
+        with mock.patch.object(probe.requests, "get", return_value=response):
+            matched, evidence = probe.check_board_identity(
+                "TCS", "greenhouse", "tcs")
+        self.assertFalse(matched)
+        self.assertIn("Thornbury", evidence)
+
+    def test_board_identity_accepts_a_matching_title_or_official_redirect(self):
+        title_response = mock.Mock(
+            status_code=200,
+            url="https://jobs.ashbyhq.com/miro",
+            text="<title>Miro Jobs</title>",
+        )
+        redirect_response = mock.Mock(
+            status_code=200,
+            url="https://www.highradius.com/about/careers-list/",
+            text="<title>Grow With Us</title>",
+        )
+        with mock.patch.object(
+                probe.requests, "get", side_effect=[title_response, redirect_response]):
+            self.assertTrue(probe.check_board_identity(
+                "Miro", "ashby", "miro")[0])
+            self.assertTrue(probe.check_board_identity(
+                "HighRadius", "greenhouse", "highradius")[0])
+
+    def test_board_identity_accepts_structured_company_name(self):
+        page_response = mock.Mock(
+            status_code=200,
+            url="https://job-boards.greenhouse.io/figureai",
+            text="<title>Jobs</title>",
+        )
+        payload_response = mock.Mock(status_code=200)
+        payload_response.json.return_value = {
+            "jobs": [{"company_name": "Figure", "content": ""}],
+        }
+        with mock.patch.object(
+                probe.requests, "get",
+                side_effect=[page_response, payload_response]):
+            matched, evidence = probe.check_board_identity(
+                "Figure AI", "greenhouse", "figureai")
+        self.assertTrue(matched)
+        self.assertIn("Figure", evidence)
+
+    def test_board_identity_accepts_strong_job_introduction(self):
+        page_response = mock.Mock(
+            status_code=200,
+            url="https://jobs.ashbyhq.com/posthog",
+            text="<title>Jobs</title>",
+        )
+        payload_response = mock.Mock(status_code=200)
+        payload_response.json.return_value = {
+            "jobs": [{"descriptionHtml": "<h2>About PostHog</h2>"}],
+        }
+        with mock.patch.object(
+                probe.requests, "get",
+                side_effect=[page_response, payload_response]):
+            matched, evidence = probe.check_board_identity(
+                "PostHog", "ashby", "posthog")
+        self.assertTrue(matched)
+        self.assertIn("posthog", evidence.casefold())
+
+    def test_board_identity_uses_payload_when_landing_page_is_blocked(self):
+        page_response = mock.Mock(status_code=403)
+        payload_response = mock.Mock(status_code=200)
+        payload_response.json.return_value = {
+            "jobs": [{"company_name": "Rubrik", "content": ""}],
+        }
+        with mock.patch.object(
+                probe.requests, "get",
+                side_effect=[page_response, payload_response]):
+            matched, evidence = probe.check_board_identity(
+                "Rubrik", "greenhouse", "rubrik")
+        self.assertTrue(matched)
+        self.assertIn("Rubrik", evidence)
+
+    def test_board_identity_rejects_incidental_payload_mention(self):
+        page_response = mock.Mock(
+            status_code=200,
+            url="https://jobs.ashbyhq.com/alloy",
+            text="<title>Jobs</title>",
+        )
+        payload_response = mock.Mock(status_code=200)
+        payload_response.json.return_value = {
+            "jobs": [{
+                "descriptionPlain": "Experience with alloy materials is useful.",
+            }],
+        }
+        with mock.patch.object(
+                probe.requests, "get",
+                side_effect=[page_response, payload_response]):
+            matched, evidence = probe.check_board_identity(
+                "Alloy", "ashby", "alloy")
+        self.assertFalse(matched)
+        self.assertIn("does not identify", evidence)
+
+    def test_board_identity_rejects_longer_single_word_collision(self):
+        page_response = mock.Mock(
+            status_code=200,
+            url="https://jobs.lever.co/neon",
+            text="<title>Neon Pagamentos</title>",
+        )
+        payload_response = mock.Mock(status_code=200)
+        payload_response.json.return_value = [{
+            "descriptionPlain": "About Neon Pagamentos",
+        }]
+        with mock.patch.object(
+                probe.requests, "get",
+                side_effect=[page_response, payload_response]):
+            matched, evidence = probe.check_board_identity(
+                "Neon", "lever", "neon")
+        self.assertFalse(matched)
+        self.assertIn("Neon Pagamentos", evidence)
+
+    def test_short_generic_suffix_free_alias_is_not_identity_evidence(self):
+        self.assertEqual(probe._identity_aliases("Pine Labs"), ["pine labs"])
+        self.assertEqual(
+            probe._identity_aliases("Figure AI"), ["figure ai", "figure"])
+
+    def test_config_identity_audit_checks_only_slug_adapters(self):
+        config_path = self.path("config.yaml")
+        with open(config_path, "w") as stream:
+            yaml.safe_dump({
+                "ats_companies": [
+                    {"name": "Good", "ats": "ashby", "slug": "good"},
+                    {"name": "Wrong", "ats": "greenhouse", "slug": "wrong"},
+                    {
+                        "name": "IMC Trading", "ats": "greenhouse", "slug": "imc",
+                        "identity_aliases": ["IMC"],
+                    },
+                    {
+                        "name": "Workday", "ats": "workday", "tenant": "wd",
+                        "wd_host": "wd1", "site": "External",
+                    },
+                ],
+            }, stream)
+
+        def identity(name, ats, slug):
+            if name in {"Good", "IMC"}:
+                return True, f"Jobs at {name}"
+            return False, "Other Jobs"
+
+        with mock.patch.object(probe, "check_board_identity", side_effect=identity):
+            results = probe.audit_config_identities(config_path, workers=2)
+        self.assertEqual(
+            [result["name"] for result in results],
+            ["Good", "Wrong", "IMC Trading"])
+        self.assertEqual(
+            [result["status"] for result in results],
+            ["verified", "mismatch", "verified"])
+        self.assertIn("configured identity alias", results[2]["evidence"])
+
+    def test_config_identity_audit_keeps_probe_exceptions_visible(self):
+        config_path = self.path("config.yaml")
+        with open(config_path, "w") as stream:
+            yaml.safe_dump({
+                "ats_companies": [{
+                    "name": "Broken", "ats": "lever", "slug": "broken",
+                }],
+            }, stream)
+        with mock.patch.object(
+                probe, "check_board_identity", side_effect=RuntimeError("boom")):
+            result = probe.audit_config_identities(config_path)[0]
+        self.assertEqual(result["status"], "unverifiable")
+        self.assertIn("RuntimeError: boom", result["evidence"])
+
+    def test_lossy_slug_with_payload_identity_can_be_verified(self):
+        candidate = {"name": "Lyra Health", "status": "candidate"}
+        with mock.patch.object(
+                probe, "probe_name_detailed",
+                return_value=([{
+                    "ats": "lever", "slug": "lyra", "jobs": 3,
+                }], [])), \
+                mock.patch.object(
+                    probe, "check_board_identity",
+                    return_value=(True, "job payload introduction: lyra health")):
+            result = probe.probe_candidate(candidate)
+        self.assertEqual(result["probe_status"], "verified_endpoint")
+
+    def test_exact_slug_with_matching_identity_is_verified(self):
+        candidate = {"name": "Example", "status": "candidate"}
+        with mock.patch.object(
+                probe, "probe_name_detailed",
+                return_value=([{
+                    "ats": "greenhouse", "slug": "example", "jobs": 3,
+                }], [])), \
+                mock.patch.object(
+                    probe, "check_board_identity",
+                    return_value=(True, "Jobs at Example")):
+            result = probe.probe_candidate(candidate)
+        self.assertEqual(result["probe_status"], "verified_endpoint")
+        self.assertEqual(result["identity_evidence"], "Jobs at Example")
 
     def test_json_report_round_trip(self):
         path = self.path("report.json")
@@ -160,13 +387,17 @@ class TestCandidateLedger(unittest.TestCase):
         with open(ledger, "w") as stream:
             yaml.safe_dump({"candidates": [
                 {"name": "Future", "status": "candidate"},
-                {"name": "Active", "status": "active"},
+                {
+                    "name": "Active", "status": "active",
+                    "company_domain": "active.example",
+                },
             ]}, stream)
         with open(report_path, "w") as stream:
             yaml.safe_dump({"candidates": [
                 {
                     "name": "Future", "probe_status": "not_found",
                     "last_probed_at": "2026-01-01T00:00:00Z", "reason": "none",
+                    "company_domain": "future.example",
                 },
                 {
                     "name": "Active", "probe_status": "verified_endpoint",
@@ -177,7 +408,63 @@ class TestCandidateLedger(unittest.TestCase):
         self.assertEqual(probe.merge_probe_report(ledger, report_path), 2)
         rows = probe.load_candidates(ledger)
         self.assertEqual(rows[0]["status"], "probed")
+        self.assertEqual(rows[0]["company_domain"], "future.example")
         self.assertEqual(rows[1]["status"], "active")
+        self.assertEqual(rows[1]["company_domain"], "active.example")
+
+    def test_report_merge_can_append_new_candidates_when_explicit(self):
+        ledger = self.path("ledger.yaml")
+        report_path = self.path("report.yaml")
+        with open(ledger, "w") as stream:
+            yaml.safe_dump({"candidates": [
+                {"name": "Existing", "status": "candidate"},
+            ]}, stream)
+        with open(report_path, "w") as stream:
+            yaml.safe_dump({"candidates": [
+                {
+                    "name": "Existing", "status": "probed",
+                    "probe_status": "not_found", "reason": "none",
+                },
+                {
+                    "name": "New Company", "status": "probed",
+                    "probe_status": "verified_endpoint", "live_postings": 2,
+                    "suggested_entry": {"ats": "ashby", "slug": "newcompany"},
+                },
+            ]}, stream)
+        self.assertEqual(
+            probe.merge_probe_report(ledger, report_path, append_new=True), 2)
+        rows = probe.load_candidates(ledger)
+        self.assertEqual([row["name"] for row in rows], ["Existing", "New Company"])
+        self.assertEqual(rows[1]["probe_status"], "verified_endpoint")
+
+    def test_report_merge_does_not_append_new_candidates_by_default(self):
+        ledger = self.path("ledger.yaml")
+        report_path = self.path("report.yaml")
+        with open(ledger, "w") as stream:
+            yaml.safe_dump({"candidates": [
+                {"name": "Existing", "status": "candidate"},
+            ]}, stream)
+        with open(report_path, "w") as stream:
+            yaml.safe_dump({"candidates": [
+                {"name": "New Company", "status": "probed",
+                 "probe_status": "not_found"},
+            ]}, stream)
+        self.assertEqual(probe.merge_probe_report(ledger, report_path), 0)
+        self.assertEqual(
+            [row["name"] for row in probe.load_candidates(ledger)], ["Existing"])
+
+    def test_slug_only_batch_skips_derived_domain_fallback(self):
+        path = self.path("candidates.yaml")
+        with open(path, "w") as stream:
+            yaml.safe_dump({"candidates": [{"name": "Example"}]}, stream)
+        with mock.patch.object(
+                probe, "probe_name_detailed", return_value=([], [])), \
+                mock.patch.object(probe, "probe_derived_domains") as domains:
+            report = probe.batch_probe(
+                path, workers=1, use_derived_domains=False)
+        self.assertEqual(
+            report["candidates"][0]["probe_status"], "not_found")
+        domains.assert_not_called()
 
     def test_known_unsupported_ats_is_fingerprinted_for_roadmap(self):
         candidate = {
@@ -231,6 +518,23 @@ class TestCandidateLedger(unittest.TestCase):
         self.assertEqual(entry["ats"], "workable")
         self.assertEqual(entry["account"], "example")
 
+    def test_workday_probe_uses_narrow_search_and_computed_page_budget(self):
+        with mock.patch.object(probe, "check_workday", return_value=101) as check:
+            entry, count = probe.probe_url(
+                "https://example.wd1.myworkdayjobs.com/External", name="Example")
+        self.assertEqual(count, 101)
+        self.assertEqual(entry["search"], "internship")
+        self.assertEqual(entry["max_pages"], 6)
+        check.assert_called_once_with(
+            "example", "wd1", "External", search="internship")
+
+    def test_workday_probe_rejects_an_unreadable_result_set(self):
+        with mock.patch.object(probe, "check_workday", return_value=241):
+            entry, reason = probe.probe_url(
+                "https://example.wd1.myworkdayjobs.com/External", name="Example")
+        self.assertIsNone(entry)
+        self.assertIn("12-request ceiling", reason)
+
     def test_company_domain_discovers_and_verifies_linked_ats(self):
         candidate = {
             "name": "Example", "status": "candidate",
@@ -243,12 +547,35 @@ class TestCandidateLedger(unittest.TestCase):
                     probe, "probe_url",
                     return_value=({
                         "name": "Example", "ats": "ashby", "slug": "example",
-                    }, 4)):
+                    }, 4)), \
+                mock.patch.object(
+                    probe, "check_entry_identity", return_value=(True, "Example Jobs")):
             result = probe.probe_candidate(candidate)
         self.assertEqual(result["probe_status"], "verified_endpoint")
         self.assertEqual(
             result["discovered_careers_url"],
             "https://jobs.ashbyhq.com/example")
+
+    def test_company_domain_rejects_an_unrelated_supported_link(self):
+        candidate = {
+            "name": "ClickHouse", "status": "candidate",
+            "company_domain": "clickhouse.com",
+        }
+        with mock.patch.object(
+                probe, "discover_careers_urls",
+                return_value=(["https://jobs.ashbyhq.com/langfuse"], [])), \
+                mock.patch.object(
+                    probe, "probe_url",
+                    return_value=({
+                        "name": "ClickHouse", "ats": "ashby", "slug": "langfuse",
+                    }, 7)), \
+                mock.patch.object(
+                    probe, "check_entry_identity",
+                    return_value=(False, "Langfuse Jobs")):
+            result = probe.probe_candidate(candidate)
+        self.assertEqual(result["probe_status"], "needs_review")
+        self.assertNotIn("suggested_entry", result)
+        self.assertIn("Langfuse", result["warnings"][0])
 
     def test_equivalent_discovered_urls_are_one_verified_endpoint(self):
         candidate = {
@@ -268,7 +595,9 @@ class TestCandidateLedger(unittest.TestCase):
                 mock.patch.object(
                     probe, "probe_url", side_effect=[
                         (dict(entry), 10), (dict(entry), 10),
-                    ]):
+                    ]), \
+                mock.patch.object(
+                    probe, "check_entry_identity", return_value=(True, None)):
             result = probe.probe_candidate(candidate)
         self.assertEqual(result["probe_status"], "verified_endpoint")
         self.assertNotIn("alternatives", result)
@@ -281,7 +610,10 @@ class TestCandidateLedger(unittest.TestCase):
         }
         with mock.patch.object(
                 probe, "probe_name_detailed",
-                return_value=([{"ats": "ashby", "slug": "example", "jobs": 2}], [])):
+                return_value=([{"ats": "ashby", "slug": "example", "jobs": 2}], [])), \
+                mock.patch.object(
+                    probe, "check_board_identity",
+                    return_value=(True, "Example Jobs")):
             result = probe.probe_candidate(candidate)
         self.assertEqual(result["probe_status"], "verified_endpoint")
         self.assertNotIn("reason", result)
@@ -309,6 +641,14 @@ class TestReviewedBatch(unittest.TestCase):
         self.assertIn("--slug", command)
         self.assertIn("--comment", command)
 
+    def test_batch_empty_board_override_is_explicitly_forwarded(self):
+        command, reason = add_source.batch_command({
+            "name": "Example", "status": "probed", "approved": True,
+            "suggested_entry": {"name": "Example", "ats": "ashby", "slug": "example"},
+        }, allow_empty=True)
+        self.assertIsNone(reason)
+        self.assertIn("--allow-empty", command)
+
     def test_url_candidate_uses_url_probe_again(self):
         command, reason = add_source.batch_command({
             "name": "Example", "status": "probed", "approved": True,
@@ -318,6 +658,22 @@ class TestReviewedBatch(unittest.TestCase):
         self.assertIsNone(reason)
         self.assertIn("--url", command)
         self.assertIn("--no-seed", command)
+
+    def test_workday_batch_preserves_safe_search_and_page_budget(self):
+        command, reason = add_source.batch_command({
+            "name": "Example", "status": "probed", "approved": True,
+            "careers_url": "https://example.wd1.myworkdayjobs.com/External",
+            "suggested_entry": {
+                "name": "Example", "ats": "workday", "tenant": "example",
+                "wd_host": "wd1", "site": "External",
+                "search": "internship", "max_pages": 7,
+            },
+        })
+        self.assertIsNone(reason)
+        self.assertIn("--search", command)
+        self.assertIn("internship", command)
+        self.assertIn("--max-pages", command)
+        self.assertIn("7", command)
 
     def test_unknown_invocation_approval_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -331,6 +687,26 @@ class TestReviewedBatch(unittest.TestCase):
                 }]}, stream)
             with self.assertRaisesRegex(SystemExit, "not found"):
                 add_source.run_batch(path, approved_names=["Unknown"])
+
+    def test_reviewed_batch_skips_an_already_tracked_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = os.path.join(directory, "report.yaml")
+            config = os.path.join(directory, "config.yaml")
+            with open(report, "w") as stream:
+                yaml.safe_dump({"candidates": [{
+                    "name": "Tracked", "status": "probed",
+                    "suggested_entry": {
+                        "name": "Tracked", "ats": "ashby", "slug": "tracked",
+                    },
+                }]}, stream)
+            with open(config, "w") as stream:
+                yaml.safe_dump({"ats_companies": [{
+                    "name": "Tracked", "ats": "ashby", "slug": "tracked",
+                }]}, stream)
+            with mock.patch.object(add_source, "CONFIG_FILE", config), \
+                    mock.patch.object(add_source, "batch_command") as build:
+                add_source.run_batch(report, approved_names=["Tracked"])
+            build.assert_not_called()
 
     def test_sync_active_updates_only_configured_candidates(self):
         with tempfile.TemporaryDirectory() as directory:

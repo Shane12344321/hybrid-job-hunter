@@ -73,12 +73,39 @@ This script is built to run entirely on **GitHub Actions for free**, with zero i
      It rolls the config back if verification fails. `python3 probe.py "Name or URL"`
      does the detection read-only. `python3 hybrid_hunter.py --validate` lints the
      config (missing adapter fields, duplicate names) without hunting.
+     Newly discovered Workday boards use the narrower `search: internship`,
+     calculate the pages required for a complete read, and are rejected when
+     they cannot fit Workday's 12-request ceiling. Explicit additions can use
+     `--search` and `--max-pages`; too-small page budgets are rejected up front.
+     Run `python3 probe.py --audit-config-identities` to live-check every
+     configured Greenhouse, Ashby, and Lever source for renamed boards or
+     cross-company slug collisions; any mismatch or unverifiable identity exits
+     nonzero and remains visible for repair.
      Batch probing accepts YAML/CSV candidate ledgers, uses bounded concurrency,
      records transport failures separately from genuine misses, and produces an
-     ATS-frequency roadmap without modifying production. Batch additions are
-     dry-run-only by default and require an explicit approval for every source.
+     ATS-frequency roadmap without modifying production. Generic ATS landing
+     page titles are corroborated with structured company fields or strong
+     company-introduction phrases in job payloads; incidental name mentions do
+     not count. Batch additions are dry-run-only by default and require an
+     explicit approval for every source.
+     Approved rows that are already present in `config.yaml` are skipped rather
+     than turning an otherwise successful bulk run into a false failure.
+     A reviewed wave of structurally verified but currently empty boards can
+     use batch `--allow-empty`; the override is forwarded to every explicitly
+     approved row and is never the default.
+     For large waves, start with `--slug-only` to complete the fast
+     Greenhouse/Ashby/Lever phase, then run domain discovery only for selected
+     misses; this avoids multiplying every miss into many sequential requests.
+     Name-based slug hits also verify the public board title or an official
+     redirect before they are marked verified. This catches plausible but wrong
+     collisions such as `bcg` and `tcs`; uncertain identity stays review-only.
+     Company-domain discovery applies the same check to structured links found
+     on careers pages, preventing an unrelated customer or partner ATS link from
+     being attributed to the company being probed.
      Use `python3 probe.py --batch candidates.yaml --merge-report probe-report.yaml`
-     to retain probe lifecycle evidence, then
+     to retain probe lifecycle evidence. When the report is a new wave, add
+     `--append-new`; importing absent rows is opt-in so ordinary re-probes cannot
+     grow the ledger unexpectedly. Then run
      `python3 add_source.py --batch candidates.yaml --sync-active` after onboarding.
    - Edit `config.yaml` to include your desired keywords, locations, ATS companies, and custom pages.
    - Enterprise boards (Workday / Amazon / Microsoft) are configured under the

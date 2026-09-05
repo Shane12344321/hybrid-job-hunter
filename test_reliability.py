@@ -30,6 +30,27 @@ class TestStateAndDelivery(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "refusing to discard"):
             hh.StateManager()
 
+    def test_valid_json_with_non_list_jobs_fails_closed(self):
+        with open(hh.STATE_FILE, "w") as stream:
+            json.dump({"Example": {"jobs": "123", "hash": ""}}, stream)
+        with self.assertRaisesRegex(RuntimeError, "Example.*jobs|jobs.*Example"):
+            hh.StateManager()
+
+    def test_malformed_reserved_state_buckets_fail_closed(self):
+        malformed = {
+            "_pending": {},
+            "_failures": [],
+            "_health": [],
+            "_stats": [],
+        }
+        for bucket, value in malformed.items():
+            with self.subTest(bucket=bucket):
+                with open(hh.STATE_FILE, "w") as stream:
+                    json.dump({bucket: value}, stream)
+                with self.assertRaisesRegex(RuntimeError, bucket):
+                    hh.StateManager()
+                os.unlink(hh.STATE_FILE)
+
     def test_state_save_is_atomic_and_round_trips(self):
         state = hh.StateManager()
         state.mark_job("Example", "1")
@@ -46,6 +67,27 @@ class TestStateAndDelivery(unittest.TestCase):
         self.assertFalse(second.state)
         self.assertTrue(first.is_new_job("Example", "2"))
 
+    def test_case_only_source_rename_reuses_state_without_replay(self):
+        with open(hh.STATE_FILE, "w") as stream:
+            json.dump({"Microsoft": {"jobs": ["1"], "hash": "old"}}, stream)
+
+        state = hh.StateManager()
+        self.assertFalse(state.is_new_job("MICROSOFT", "1"))
+        state.mark_job("MICROSOFT", "2")
+
+        matching_keys = [key for key in state.state if key.casefold() == "microsoft"]
+        self.assertEqual(len(matching_keys), 1)
+        self.assertEqual(state.state[matching_keys[0]]["jobs"], ["1", "2"])
+
+    def test_ambiguous_casefold_source_keys_fail_closed(self):
+        with open(hh.STATE_FILE, "w") as stream:
+            json.dump({
+                "Microsoft": {"jobs": ["1"], "hash": ""},
+                "MICROSOFT": {"jobs": ["2"], "hash": ""},
+            }, stream)
+        with self.assertRaisesRegex(RuntimeError, "case|collision|ambiguous"):
+            hh.StateManager()
+
     def test_pending_alert_is_never_dropped(self):
         state = hh.StateManager()
         state.state = {"_pending": [{"message": "important", "attempts": 4}]}
@@ -53,6 +95,33 @@ class TestStateAndDelivery(unittest.TestCase):
         state.flush_pending(notifier)
         self.assertEqual(state.pending_count(), 1)
         self.assertEqual(state.state["_pending"][0]["attempts"], 5)
+
+    def test_successful_pending_flush_is_checkpointed_before_later_failure(self):
+        state = hh.StateManager()
+        state.queue_alert("important")
+        state.save()
+        with open("config.yaml", "w") as stream:
+            json.dump({
+                "keywords": ["intern"], "locations": ["india"],
+                "telegram": {
+                    "token": "${TELEGRAM_TOKEN}",
+                    "chat_id": "${TELEGRAM_CHAT_ID}",
+                },
+                "ats_companies": [], "custom_pages": [],
+            }, stream)
+
+        with mock.patch.dict(os.environ, {
+                "TELEGRAM_TOKEN": "token", "TELEGRAM_CHAT_ID": "123"}), \
+                mock.patch.object(hh.sys, "argv", ["hybrid_hunter.py", "--ats-only"]), \
+                mock.patch.object(hh.Notifier, "send", return_value=True) as send, \
+                mock.patch.object(
+                    hh.StateManager, "prune_removed_sources",
+                    side_effect=RuntimeError("later crawl failure")):
+            with self.assertRaisesRegex(RuntimeError, "later crawl failure"):
+                hh.main()
+
+        send.assert_called_once_with("important")
+        self.assertEqual(hh.StateManager().pending_count(), 0)
 
     def test_source_health_tracks_requests_latency_and_zero_streak(self):
         state = hh.StateManager()
@@ -161,6 +230,14 @@ class TestCLIAndValidation(unittest.TestCase):
                 "keywords: [intern]\nlocations: [india]\n"
                 "ats_companies:\n- {name: Broken, ats: amazon}\ncustom_pages: []\n")
 
+    @staticmethod
+    def write_empty_config():
+        with open("config.yaml", "w") as stream:
+            json.dump({
+                "keywords": ["intern"], "locations": ["india"],
+                "ats_companies": [], "custom_pages": [],
+            }, stream)
+
     def test_failed_selected_source_exits_nonzero(self):
         self.write_config()
         response = mock.Mock()
@@ -222,6 +299,51 @@ class TestCLIAndValidation(unittest.TestCase):
         self.assertEqual(
             sum("must be a number" in item for item in problems), 3)
 
+    def test_validation_rejects_whitespace_filters_and_zero_markers(self):
+        config = {
+            "keywords": [" "], "exclude_keywords": ["\t"],
+            "locations": ["\n"], "exclude_locations": [""],
+            "ats_companies": [{
+                "name": "Example", "ats": "ashby", "slug": "example",
+                "keywords": ["   "],
+            }],
+            "custom_pages": [{
+                "name": "Page", "url": "https://example.test",
+                "zero_result_text": ["  "],
+            }],
+        }
+        problems = hh.validate_config(config)
+        for field in ("keywords", "exclude_keywords", "locations",
+                      "exclude_locations", "zero_result_text"):
+            with self.subTest(field=field):
+                self.assertTrue(any(field in problem for problem in problems), problems)
+
+    def test_validation_rejects_duplicate_board_targets(self):
+        config = {
+            "keywords": ["intern"], "locations": ["india"],
+            "ats_companies": [
+                {"name": "Perplexity", "ats": "ashby", "slug": "perplexity"},
+                {"name": "Perplexity AI", "ats": "ashby", "slug": "perplexity"},
+                {"name": "Tower Research", "ats": "greenhouse", "slug": "towerresearchcapital"},
+            ],
+        }
+        problems = hh.validate_config(config)
+        self.assertTrue(any("duplicate board target" in item for item in problems), problems)
+
+    def test_validation_allows_distinct_scopes_of_same_tenant(self):
+        config = {
+            "keywords": ["intern"], "locations": ["india"],
+            "ats_companies": [
+                # Same Workday tenant shape, different sites:
+                {"name": "A", "ats": "workday", "tenant": "acme", "wd_host": "wd5", "site": "One"},
+                {"name": "B", "ats": "workday", "tenant": "acme", "wd_host": "wd5", "site": "Two"},
+                # Same SmartRecruiters company_id scoped to different countries:
+                {"name": "C", "ats": "smartrecruiters", "company_id": "Acme", "country": "in"},
+                {"name": "D", "ats": "smartrecruiters", "company_id": "Acme", "country": "us"},
+            ],
+        }
+        self.assertEqual(hh.validate_config(config), [])
+
     def test_shard_settings_and_related_source_assignment(self):
         index, count, path = hh.shard_settings_from_argv([
             "--shard-index=2", "--shard-count", "4",
@@ -230,6 +352,37 @@ class TestCLIAndValidation(unittest.TestCase):
         parent = {"name": "Example"}
         supplement = {"name": "Example Program", "supplement_for": "Example"}
         self.assertEqual(hh.source_shard(parent, 8), hh.source_shard(supplement, 8))
+
+    def test_relationship_target_alias_rides_with_canonical_parent(self):
+        parent = {
+            "name": "Example", "aliases": ["Example Inc"],
+            "ats": "ashby", "slug": "example",
+        }
+        supplement = {
+            "name": "Example Program", "supplement_for": "Example Inc",
+            "url": "https://example.test/program",
+            "keyword_filter": False, "location_filter": False,
+        }
+        with open("config.yaml", "w") as stream:
+            json.dump({
+                "keywords": ["intern"], "locations": ["india"],
+                "ats_companies": [parent], "custom_pages": [supplement],
+            }, stream)
+
+        parent_shard = hh.source_shard(parent, 2)
+        page_result = {
+            "hash": "a" * 32, "matches_keywords": True,
+            "matches_locations": True, "is_match": False,
+        }
+        with mock.patch.object(hh.sys, "argv", [
+                "hybrid_hunter.py", "--test", "--company", "Example",
+                "--shard-count", "2", "--shard-index", str(parent_shard)]), \
+                mock.patch.object(hh.ATSHunter, "hunt_ashby", return_value=[]), \
+                mock.patch.object(
+                    hh.CustomWebHunter, "hunt", return_value=page_result) as hunt_page:
+            hh.main()
+
+        hunt_page.assert_called_once()
 
     def test_invalid_shard_settings_are_rejected(self):
         with self.assertRaisesRegex(ValueError, "between"):
@@ -272,6 +425,30 @@ class TestCLIAndValidation(unittest.TestCase):
             "--test", "--ats-only", "--company", "Adobe", "--company=Groww",
             "--shard-count", "2", "--shard-index=1", "--state-file", "s.json",
         ]), [])
+
+    def test_boolean_flags_reject_equals_values(self):
+        for flag in ("--test", "--seed", "--validate", "--heartbeat",
+                     "--ats-only", "--pages-only", "--help"):
+            argument = f"{flag}=false"
+            with self.subTest(flag=flag):
+                self.assertEqual(hh.unknown_flags_from_argv([argument]), [argument])
+
+    def test_run_modes_are_mutually_exclusive(self):
+        self.write_empty_config()
+        for modes in (("--test", "--seed"),
+                      ("--test", "--heartbeat"),
+                      ("--seed", "--heartbeat")):
+            with self.subTest(modes=modes), \
+                    mock.patch.object(hh.sys, "argv", ["hybrid_hunter.py", *modes]):
+                with self.assertRaisesRegex(SystemExit, "mutually exclusive|only one"):
+                    hh.main()
+
+    def test_ats_only_and_pages_only_are_mutually_exclusive(self):
+        self.write_empty_config()
+        with mock.patch.object(hh.sys, "argv", [
+                "hybrid_hunter.py", "--test", "--ats-only", "--pages-only"]):
+            with self.assertRaisesRegex(SystemExit, "mutually exclusive|only one"):
+                hh.main()
 
     def test_typo_flags_are_rejected_rather_than_ignored(self):
         # A dropped "--test" would turn an intended dry run into a live

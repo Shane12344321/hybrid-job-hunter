@@ -17,6 +17,7 @@ handle (JS-only boards and program-monitor pages).
 import argparse
 import csv
 import json
+import math
 import os
 import re
 import sys
@@ -29,6 +30,9 @@ import yaml
 from bs4 import BeautifulSoup
 
 TIMEOUT = 12
+WORKDAY_SEARCH = "internship"
+WORKDAY_PAGE_SIZE = 20
+WORKDAY_MAX_PAGES = 12
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "application/json",
@@ -112,10 +116,13 @@ def domain_candidates(name, limit=6):
 def probe_derived_domains(name, limit=6):
     """Try `domain_candidates` until one yields a supported board.
 
-    Returns ``(entry, live_count, domain, url, errors)``; entry is None when
-    nothing resolved. Transport failures are collected rather than raised so a
-    flaky DNS lookup is never recorded as a definitive "not found"."""
+    Returns ``(entry, live_count, domain, url, errors, unsupported)``; entry is
+    None when nothing resolved. Transport failures are collected rather than
+    raised so a flaky DNS lookup is never recorded as a definitive "not
+    found". Unsupported ATS fingerprints are retained for the adapter roadmap.
+    """
     errors = []
+    unsupported = []
     for domain in domain_candidates(name, limit=limit):
         try:
             urls, discovery_errors = discover_careers_urls(domain)
@@ -132,8 +139,18 @@ def probe_derived_domains(name, limit=6):
                 errors.append(f"{url}: {exc}")
                 continue
             if entry:
-                return entry, info, domain, url, errors
-    return None, None, None, None, errors
+                identity_ok, identity_evidence = check_entry_identity(name, entry)
+                if identity_ok is not True:
+                    errors.append(f"{url}: {identity_evidence}")
+                    continue
+                return entry, info, domain, url, errors, unsupported
+            ats = fingerprint_unsupported_url(url)
+            if ats:
+                unsupported.append({
+                    "ats": ats, "company_domain": domain,
+                    "careers_url": url, "reason": info,
+                })
+    return None, None, None, None, errors, unsupported
 
 
 def slug_is_high_confidence(name, slug):
@@ -141,6 +158,217 @@ def slug_is_high_confidence(name, slug):
     base = re.sub(r"[^a-z0-9 ]+", "", name.lower()).strip()
     words = base.split()
     return slug in {"".join(words), "-".join(words)}
+
+
+IDENTITY_SUFFIX_WORDS = {
+    "ai", "aviation", "company", "data", "energy", "group", "health",
+    "holdings", "inc", "interactive", "lab", "labs", "motors", "network",
+    "networks", "security", "space", "systems", "technologies", "technology",
+}
+
+
+def _identity_aliases(name):
+    """Return the full name plus a conservative suffix-free trading name."""
+    words = re.findall(r"[a-z0-9]+", name.casefold())
+    aliases = [" ".join(words)] if words else []
+    trimmed = list(words)
+    while len(trimmed) > 1 and trimmed[-1] in IDENTITY_SUFFIX_WORDS:
+        trimmed.pop()
+    core = " ".join(trimmed)
+    # A short, generic core (for example, Pine from Pine Labs) is too weak to
+    # distinguish a legitimate trading name from a different company.
+    if (len(re.sub(r"[^a-z0-9]", "", core)) >= 5
+            and core and core not in aliases):
+        aliases.append(core)
+    return aliases
+
+
+def _strong_identity_phrase(text, aliases):
+    """Find a company-introduction phrase, not an arbitrary name mention."""
+    plain = BeautifulSoup(text, "html.parser").get_text("\n", strip=True)
+    normalized = plain.casefold()
+    for alias in aliases:
+        escaped = r"\s+".join(map(re.escape, alias.split()))
+        heading = re.compile(
+            rf"^(?:about|join|meet|welcome\s+to|why)\s+{escaped}"
+            rf"\s*(?:$|[|:;,.!?\-—–])")
+        if any(heading.search(re.sub(r"\s+", " ", line).strip())
+               for line in normalized.splitlines()):
+            return alias
+        sentence_patterns = (
+            rf"\b(?:at)\s+{escaped}\s*[,;:—–-]",
+            rf"\b{escaped}\s+(?:is|builds|creates|develops|helps|provides|was)\b",
+        )
+        if any(re.search(pattern, normalized) for pattern in sentence_patterns):
+            return alias
+    return None
+
+
+TITLE_BOILERPLATE_WORDS = {
+    "at", "career", "careers", "employment", "homepage", "hiring", "job",
+    "jobs", "open", "opening", "openings", "opportunities", "opportunity",
+    "position", "positions", "roles", "with",
+}
+TITLE_LEGAL_WORDS = {
+    "co", "company", "corp", "corporation", "inc", "incorporated", "limited",
+    "llc", "ltd", "plc", "software",
+}
+
+
+def _title_identity_matches(title, aliases):
+    """Require a token-exact title after removing only ATS boilerplate."""
+    title_words = re.findall(r"[a-z0-9]+", title.casefold())
+    meaningful = [word for word in title_words if word not in TITLE_BOILERPLATE_WORDS]
+    for alias in aliases:
+        alias_words = alias.split()
+        for start in range(len(meaningful) - len(alias_words) + 1):
+            if meaningful[start:start + len(alias_words)] != alias_words:
+                continue
+            extras = meaningful[:start] + meaningful[start + len(alias_words):]
+            if all(word in TITLE_LEGAL_WORDS for word in extras):
+                return True
+    return False
+
+
+def _redirect_identity_matches(host, aliases):
+    """Treat a company-controlled redirect host as evidence, not its path."""
+    labels = [part for part in host.casefold().split(".") if part]
+    normalized_labels = {
+        re.sub(r"[^a-z0-9]+", "", label)
+        for label in labels
+        if label not in {"www", "careers", "jobs", "apply"}
+    }
+    return any(
+        re.sub(r"[^a-z0-9]+", "", alias) in normalized_labels
+        for alias in aliases
+    )
+
+
+def check_job_payload_identity(name, ats, slug):
+    """Corroborate a generic ATS page title using structured job payloads.
+
+    Greenhouse exposes an explicit ``company_name``. Ashby and Lever expose
+    full job descriptions, where a tightly scoped company-introduction phrase
+    is stronger evidence than an arbitrary occurrence of a short brand word.
+    Only the first three jobs are inspected. An empty or malformed response
+    stays reviewable rather than being mistaken for positive evidence.
+    """
+    endpoints = {
+        "greenhouse": (
+            f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true",
+            lambda payload: payload.get("jobs") if isinstance(payload, dict) else None,
+        ),
+        "ashby": (
+            f"https://api.ashbyhq.com/posting-api/job-board/{slug}",
+            lambda payload: payload.get("jobs") if isinstance(payload, dict) else None,
+        ),
+        "lever": (
+            f"https://api.lever.co/v0/postings/{slug}?mode=json",
+            lambda payload: payload if isinstance(payload, list) else None,
+        ),
+    }
+    endpoint = endpoints.get(ats)
+    if not endpoint:
+        return None, f"job-payload identity checking is not implemented for {ats}"
+    try:
+        response = requests.get(endpoint[0], timeout=TIMEOUT, headers=HEADERS)
+    except requests.RequestException as exc:
+        return None, f"job-payload identity check failed: {exc}"
+    if response.status_code != 200:
+        return None, (
+            f"job-payload identity check returned HTTP {response.status_code}")
+    payload = _json_or_none(response)
+    jobs = endpoint[1](payload)
+    if not isinstance(jobs, list) or not jobs:
+        return None, "job-payload identity check returned no inspectable jobs"
+
+    aliases = _identity_aliases(name)
+    normalized_aliases = {
+        re.sub(r"[^a-z0-9]+", "", alias) for alias in aliases if alias
+    }
+    for job in jobs[:3]:
+        if not isinstance(job, dict):
+            continue
+        company_name = job.get("company_name")
+        normalized_company = re.sub(
+            r"[^a-z0-9]+", "", str(company_name or "").casefold())
+        if normalized_company and normalized_company in normalized_aliases:
+            return True, f"job payload company: {company_name}"
+        text = " ".join(str(job.get(field) or "") for field in (
+            "descriptionHtml", "descriptionPlain", "description", "openingPlain",
+            "opening", "additionalPlain", "additional", "content",
+        ))
+        phrase = _strong_identity_phrase(text, aliases)
+        if phrase:
+            return True, f"job payload introduction: {phrase}"
+    return False, f"job payload does not identify {name!r}"
+
+
+def check_board_identity(name, ats, slug):
+    """Confirm a slug board's visible identity before calling it verified.
+
+    Exact-looking slugs still collide: ``bcg`` is Bohen Consulting Group and
+    ``tcs`` is Thornbury Community Services. The public board title or its
+    official redirect must contain the intended company name. ``None`` means
+    the identity check itself was unreliable and therefore still needs review.
+    """
+    bases = {
+        "greenhouse": "https://job-boards.greenhouse.io/",
+        "lever": "https://jobs.lever.co/",
+        "ashby": "https://jobs.ashbyhq.com/",
+    }
+    base = bases.get(ats)
+    if not base:
+        return None, f"identity checking is not implemented for {ats}"
+    aliases = _identity_aliases(name)
+    board_host = (urlparse(base).hostname or "").casefold()
+    title = ""
+    response_url = base + slug
+    page_issue = None
+    try:
+        response = requests.get(
+            response_url, timeout=TIMEOUT,
+            headers={**HEADERS, "Accept": "text/html,application/xhtml+xml"},
+            allow_redirects=True)
+    except requests.RequestException as exc:
+        response = None
+        page_issue = f"board identity check failed: {exc}"
+    if response is not None and response.status_code == 200:
+        response_url = response.url
+        soup = BeautifulSoup(response.text, "html.parser")
+        title = soup.title.get_text(" ", strip=True) if soup.title else ""
+        final_host = (urlparse(response.url).hostname or "").casefold()
+        # The original ATS URL contains the slug under test, so counting that
+        # path as evidence would make every collision pass. A redirect is only
+        # evidence when it leaves the ATS host for a company-controlled site.
+        redirect_matches = (
+            final_host != board_host
+            and _redirect_identity_matches(final_host, aliases)
+        )
+        if _title_identity_matches(title, aliases) or redirect_matches:
+            return True, title or response.url
+    elif response is not None:
+        page_issue = f"board identity check returned HTTP {response.status_code}"
+
+    # Public landing pages are sometimes 403-protected while their documented
+    # job APIs remain healthy. Always attempt the structured payload before
+    # declaring identity unverifiable.
+    payload_ok, payload_evidence = check_job_payload_identity(name, ats, slug)
+    if payload_ok is True:
+        return True, payload_evidence
+    page_evidence = page_issue or (
+        f"board title/redirect does not identify {name!r}: "
+        f"{title or response_url!r}")
+    if payload_ok is None:
+        return None, f"{page_evidence}; {payload_evidence}"
+    return False, f"{page_evidence}; {payload_evidence}"
+
+
+def check_entry_identity(name, entry):
+    """Apply slug-board identity checks to a discovered adapter entry."""
+    if entry.get("ats") in {"greenhouse", "ashby", "lever"} and entry.get("slug"):
+        return check_board_identity(name, entry["ats"], entry["slug"])
+    return True, None
 
 
 def _json_or_none(res):
@@ -211,20 +439,12 @@ def check_workable(account):
             or not isinstance(payload.get("jobs"), list)):
         return None
     return len(payload["jobs"])
-    payload = _json_or_none(res)
-    if (not isinstance(payload, dict) or "totalFound" not in payload
-            or not isinstance(payload.get("content"), list)):
-        return None
-    try:
-        return int(payload["totalFound"])
-    except (TypeError, ValueError):
-        return None
 
 
-def check_workday(tenant, wd_host, site):
+def check_workday(tenant, wd_host, site, search=WORKDAY_SEARCH):
     """Verify a Workday CXS board with the same POST the hunter uses."""
     url = f"https://{tenant}.{wd_host}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs"
-    res = requests.post(url, json={"limit": 1, "offset": 0, "searchText": "intern"},
+    res = requests.post(url, json={"limit": 1, "offset": 0, "searchText": search},
                         timeout=TIMEOUT,
                         headers={**HEADERS, "Content-Type": "application/json"})
     if res.status_code != 200:
@@ -232,8 +452,33 @@ def check_workday(tenant, wd_host, site):
     payload = _json_or_none(res)
     if (isinstance(payload, dict) and "total" in payload
             and isinstance(payload.get("jobPostings"), list)):
-        return int(payload["total"])
+        try:
+            total = int(payload["total"])
+        except (TypeError, ValueError):
+            return None
+        return total if total >= 0 else None
     return None
+
+
+def workday_entry(name, tenant, wd_host, site, search=WORKDAY_SEARCH):
+    """Build a Workday entry only when its complete result set is readable."""
+    count = check_workday(tenant, wd_host, site, search=search)
+    if count is None:
+        return None, (
+            f"Workday CXS verify failed (tenant={tenant}, wd_host={wd_host}, "
+            f"site={site}, search={search!r})")
+    pages = max(1, math.ceil(count / WORKDAY_PAGE_SIZE))
+    if pages > WORKDAY_MAX_PAGES:
+        return None, (
+            f"Workday search {search!r} returns {count} postings and needs "
+            f"{pages} pages, above the {WORKDAY_MAX_PAGES}-request ceiling")
+    entry = {
+        "name": name, "ats": "workday", "tenant": tenant,
+        "wd_host": wd_host, "site": site, "search": search,
+    }
+    if pages > 4:
+        entry["max_pages"] = pages
+    return entry, count
 
 
 def check_eightfold(base_url, domain):
@@ -386,11 +631,7 @@ def probe_url(url, name=None):
         if not site_segs:
             return None, "Workday URL has no site path segment (need https://TENANT.wdN.myworkdayjobs.com/SITE)"
         site = site_segs[0]
-        count = check_workday(tenant, wd_host, site)
-        if count is None:
-            return None, f"Workday CXS verify failed (tenant={tenant}, wd_host={wd_host}, site={site})"
-        return ({"name": name or tenant, "ats": "workday",
-                 "tenant": tenant, "wd_host": wd_host, "site": site}, count)
+        return workday_entry(name or tenant, tenant, wd_host, site)
 
     for hosts, ats, checker in ((GREENHOUSE_HOSTS, "greenhouse", check_greenhouse),
                                 (LEVER_HOSTS, "lever", check_lever),
@@ -512,13 +753,13 @@ def _utc_now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def probe_candidate(candidate):
+def probe_candidate(candidate, use_derived_domains=True):
     """Probe one ledger row and return review data without mutating the row."""
     result = dict(candidate)
     for field in (
             "probe_status", "last_probed_at", "reason", "warnings",
             "live_postings", "suggested_entry", "alternatives", "unsupported_ats",
-            "discovered_careers_url"):
+            "discovered_careers_url", "identity_evidence"):
         result.pop(field, None)
     result["last_probed_at"] = _utc_now()
     name = candidate["name"]
@@ -546,6 +787,7 @@ def probe_candidate(candidate):
             return result
         verified = []
         unsupported = []
+        identity_mismatches = []
         for discovered_url in discovered[:3]:
             try:
                 entry, info = probe_url(discovered_url, name=name)
@@ -553,7 +795,12 @@ def probe_candidate(candidate):
                 discovery_errors.append(f"{discovered_url}: {exc}")
                 continue
             if entry:
-                verified.append((discovered_url, entry, info))
+                identity_ok, identity_evidence = check_entry_identity(name, entry)
+                if identity_ok is not True:
+                    identity_mismatches.append(
+                        f"{discovered_url}: {identity_evidence}")
+                    continue
+                verified.append((discovered_url, entry, info, identity_evidence))
             else:
                 unsupported.append((discovered_url, info))
         if verified:
@@ -562,7 +809,7 @@ def probe_candidate(candidate):
                 key = yaml.safe_dump(item[1], sort_keys=True)
                 deduped.setdefault(key, item)
             verified = list(deduped.values())
-            discovered_url, entry, info = verified[0]
+            discovered_url, entry, info, identity_evidence = verified[0]
             result.update({
                 "status": "probed",
                 "probe_status": (
@@ -572,12 +819,22 @@ def probe_candidate(candidate):
                 "live_postings": info,
                 "suggested_entry": entry,
             })
+            if identity_evidence:
+                result["identity_evidence"] = identity_evidence
             if len(verified) > 1:
                 result["alternatives"] = [
                     {"careers_url": item[0], "suggested_entry": item[1],
                      "live_postings": item[2]}
                     for item in verified
                 ]
+            return result
+        if identity_mismatches and not unsupported:
+            result.update({
+                "status": "probed",
+                "probe_status": "needs_review",
+                "reason": "discovered ATS links failed company identity checks",
+                "warnings": identity_mismatches[:3],
+            })
             return result
         result.update({
             "status": "probed" if not discovery_errors else candidate.get("status", "candidate"),
@@ -593,6 +850,8 @@ def probe_candidate(candidate):
         unsupported_ats = fingerprint_unsupported_url(discovered[0])
         if unsupported_ats:
             result["unsupported_ats"] = unsupported_ats
+        if identity_mismatches:
+            result["warnings"] = identity_mismatches[:3]
         return result
     if url:
         try:
@@ -613,12 +872,24 @@ def probe_candidate(candidate):
             if unsupported_ats:
                 result["unsupported_ats"] = unsupported_ats
             return result
+        identity_ok, identity_evidence = check_entry_identity(name, entry)
+        if identity_ok is not True:
+            result.update({
+                "status": "probed",
+                "probe_status": "needs_review",
+                "live_postings": info,
+                "suggested_entry": entry,
+                "warnings": [identity_evidence],
+            })
+            return result
         result.update({
             "status": "probed",
             "probe_status": "verified_endpoint",
             "live_postings": info,
             "suggested_entry": entry,
         })
+        if identity_evidence:
+            result["identity_evidence"] = identity_evidence
         return result
 
     hits, errors = probe_name_detailed(name)
@@ -627,12 +898,12 @@ def probe_candidate(candidate):
         for hit in hits
     }
     hits = list(unique_hits.values())
-    if not hits:
+    if not hits and use_derived_domains:
         # Slug probing only reaches Greenhouse/Ashby/Lever. Before calling this
         # a miss, try the company's own careers page, which reaches every
         # adapter probe_url understands — that is how Hugging Face (Workable)
         # and BrowserStack (Workday) turn up.
-        entry, info, domain, url, domain_errors = probe_derived_domains(name)
+        entry, info, domain, url, domain_errors, unsupported = probe_derived_domains(name)
         if entry:
             result.update({
                 "status": "probed",
@@ -643,6 +914,23 @@ def probe_candidate(candidate):
                 "live_postings": info,
                 "suggested_entry": entry,
             })
+            return result
+        if unsupported:
+            blocked = unsupported[0]
+            result.update({
+                "status": "probed",
+                "probe_status": "unsupported",
+                "company_domain": blocked["company_domain"],
+                "careers_url": blocked["careers_url"],
+                "discovered_careers_url": blocked["careers_url"],
+                "unsupported_ats": blocked["ats"],
+                "reason": blocked["reason"],
+            })
+            if domain_errors:
+                result["warnings"] = [
+                    f"derived-domain probe: {error}"
+                    for error in domain_errors[:2]
+                ]
             return result
         # Deliberately NOT folded into the failure decision: derived domains are
         # guesses, so a guess that does not resolve is an expected miss, not an
@@ -665,13 +953,33 @@ def probe_candidate(candidate):
             })
         return result
 
+    if not hits:
+        if errors:
+            result.update({
+                "probe_status": "failed",
+                "reason": "all or part of the probe was unreliable: " + "; ".join(errors[:3]),
+            })
+        else:
+            result.update({
+                "status": "probed",
+                "probe_status": "not_found",
+                "reason": "no Greenhouse, Ashby, or Lever board matched the name",
+            })
+        return result
+
     ranked = sorted(hits, key=lambda hit: (-hit["jobs"], hit["ats"], hit["slug"]))
     best = ranked[0]
+    lossy = not slug_is_high_confidence(name, best["slug"])
+    identity_ok = None
+    identity_evidence = None
+    if len(ranked) == 1:
+        identity_ok, identity_evidence = check_board_identity(
+            name, best["ats"], best["slug"])
     result.update({
         "status": "probed",
         "probe_status": (
             "needs_review"
-            if len(ranked) > 1 or not slug_is_high_confidence(name, best["slug"])
+            if len(ranked) > 1 or identity_ok is not True
             else "verified_endpoint"
         ),
         "live_postings": best["jobs"],
@@ -683,13 +991,18 @@ def probe_candidate(candidate):
         result["alternatives"] = ranked
     if errors:
         result["warnings"] = errors[:3]
-    if not slug_is_high_confidence(name, best["slug"]):
+    if lossy and identity_ok is not True:
         result.setdefault("warnings", []).append(
             f"lossy slug '{best['slug']}' does not represent the full company name")
+    elif identity_ok is not True:
+        result.setdefault("warnings", []).append(identity_evidence)
+    else:
+        result["identity_evidence"] = identity_evidence
     return result
 
 
-def batch_probe(path, workers=4, statuses=None, with_domain=False):
+def batch_probe(path, workers=4, statuses=None, with_domain=False,
+                use_derived_domains=True):
     """Probe every candidate with bounded concurrency and return a report."""
     if not 1 <= workers <= 16:
         raise ValueError("--workers must be between 1 and 16")
@@ -707,7 +1020,9 @@ def batch_probe(path, workers=4, statuses=None, with_domain=False):
     results = [None] * len(candidates)
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
-            executor.submit(probe_candidate, candidate): index
+            executor.submit(
+                probe_candidate, candidate,
+                use_derived_domains=use_derived_domains): index
             for index, candidate in enumerate(candidates)
         }
         for future in as_completed(futures):
@@ -766,8 +1081,13 @@ def write_report(report, path):
         raise ValueError("--output must end in .json, .yaml, or .yml")
 
 
-def merge_probe_report(ledger_path, report_path):
-    """Merge review evidence into a YAML ledger without touching config/state."""
+def merge_probe_report(ledger_path, report_path, append_new=False):
+    """Merge review evidence into a YAML ledger without touching config/state.
+
+    ``append_new`` imports report rows that are not already in the ledger. It is
+    intentionally opt-in so a routine re-probe cannot expand the candidate set
+    by surprise.
+    """
     if os.path.splitext(ledger_path)[1].lower() not in (".yaml", ".yml"):
         raise ValueError("--merge-report requires a YAML ledger")
     candidates = load_candidates(ledger_path)
@@ -776,14 +1096,30 @@ def merge_probe_report(ledger_path, report_path):
     results = report.get("candidates") if isinstance(report, dict) else None
     if not isinstance(results, list):
         raise ValueError("probe report must contain candidates[]")
-    by_name = {
-        row.get("name", "").casefold(): row
-        for row in results if isinstance(row, dict) and isinstance(row.get("name"), str)
-    }
+    by_name = {}
+    for index, row in enumerate(results, 1):
+        if not isinstance(row, dict):
+            raise ValueError(f"probe report candidate {index} must be a mapping")
+        name = row.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"probe report candidate {index} is missing a name")
+        key = name.strip().casefold()
+        if key in by_name:
+            raise ValueError(f"duplicate candidate name in probe report: {name.strip()}")
+        status = row.get("status", "candidate")
+        if status not in SUPPORTED_LEDGER_STATUSES:
+            raise ValueError(
+                f"{name.strip()}: status must be one of "
+                f"{', '.join(sorted(SUPPORTED_LEDGER_STATUSES))}")
+        normalized = dict(row)
+        normalized["name"] = name.strip()
+        normalized["status"] = status
+        by_name[key] = normalized
     fields = (
         "probe_status", "last_probed_at", "reason", "warnings",
         "live_postings", "suggested_entry", "alternatives", "unsupported_ats",
-        "careers_url", "discovered_careers_url",
+        "company_domain", "careers_url", "discovered_careers_url",
+        "identity_evidence",
     )
     merged = 0
     for candidate in candidates:
@@ -796,8 +1132,16 @@ def merge_probe_report(ledger_path, report_path):
         for field in fields:
             if field in result:
                 candidate[field] = result[field]
-            else:
+            elif field != "company_domain":
                 candidate.pop(field, None)
+    if append_new:
+        known_names = {candidate["name"].casefold() for candidate in candidates}
+        for key, result in by_name.items():
+            if key in known_names:
+                continue
+            candidates.append(dict(result))
+            known_names.add(key)
+            merged += 1
     with open(ledger_path, "w", encoding="utf-8") as stream:
         yaml.safe_dump(
             {"version": 1, "candidates": candidates},
@@ -825,6 +1169,83 @@ def print_batch_summary(report):
         print(f"{marker} {candidate['name']}: {candidate['probe_status']} {detail}".rstrip())
 
 
+def audit_config_identities(path="config.yaml", workers=4):
+    """Live-check every configured slug board for company-identity drift."""
+    if not 1 <= workers <= 16:
+        raise ValueError("--workers must be between 1 and 16")
+    with open(path, encoding="utf-8") as stream:
+        config = yaml.safe_load(stream) or {}
+    entries = config.get("ats_companies")
+    if not isinstance(entries, list):
+        raise ValueError("config ats_companies must be a list")
+    targets = []
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            raise ValueError(f"config ats_companies entry {index + 1} must be a mapping")
+        if entry.get("ats") not in {"greenhouse", "ashby", "lever"}:
+            continue
+        name, slug = entry.get("name"), entry.get("slug")
+        if not isinstance(name, str) or not isinstance(slug, str):
+            raise ValueError(
+                f"slug-based source at entry {index + 1} requires name and slug")
+        identity_aliases = entry.get("identity_aliases", [])
+        if (not isinstance(identity_aliases, list)
+                or any(not isinstance(alias, str) or not alias.strip()
+                       for alias in identity_aliases)):
+            raise ValueError(
+                f"{name}: identity_aliases must be a list of non-empty strings")
+        targets.append((index, name, entry["ats"], slug, identity_aliases))
+
+    def inspect(target):
+        index, name, ats, slug, identity_aliases = target
+        try:
+            matched, evidence = check_board_identity(name, ats, slug)
+            for alias in identity_aliases:
+                if matched is True:
+                    break
+                alias_matched, alias_evidence = check_board_identity(alias, ats, slug)
+                if alias_matched is True:
+                    matched = True
+                    evidence = (
+                        f"configured identity alias {alias!r}: {alias_evidence}")
+                    break
+        except Exception as exc:  # keep one unexpected probe from hiding the rest
+            matched, evidence = None, f"identity audit raised {type(exc).__name__}: {exc}"
+        return {
+            "index": index,
+            "name": name,
+            "ats": ats,
+            "slug": slug,
+            "status": (
+                "verified" if matched is True
+                else "mismatch" if matched is False
+                else "unverifiable"
+            ),
+            "evidence": evidence,
+        }
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        results = list(executor.map(inspect, targets))
+    return sorted(results, key=lambda result: result["index"])
+
+
+def print_identity_audit(results):
+    counts = {status: 0 for status in ("verified", "mismatch", "unverifiable")}
+    for result in results:
+        counts[result["status"]] += 1
+    print(
+        f"Audited {len(results)} configured slug source(s): "
+        f"{counts['verified']} verified, {counts['mismatch']} mismatch, "
+        f"{counts['unverifiable']} unverifiable")
+    for result in results:
+        if result["status"] == "verified":
+            continue
+        marker = "❌" if result["status"] == "mismatch" else "⚠️"
+        print(
+            f"{marker} {result['name']} ({result['ats']}:{result['slug']}): "
+            f"{result['evidence']}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -840,24 +1261,50 @@ def main():
                         help="With --batch, probe only candidates in this status; repeatable")
     parser.add_argument("--with-domain", action="store_true",
                         help="With --batch, probe only rows that define company_domain")
+    parser.add_argument("--slug-only", action="store_true",
+                        help="With --batch, skip derived-domain fallback after slug misses")
     parser.add_argument("--merge-report", metavar="REPORT",
                         help="Merge an existing report into the YAML --batch ledger and exit")
+    parser.add_argument("--append-new", action="store_true",
+                        help="With --merge-report, also import report rows absent from the ledger")
+    parser.add_argument(
+        "--audit-config-identities", nargs="?", const="config.yaml", metavar="PATH",
+        help="Live-check every configured Greenhouse/Ashby/Lever board for identity drift")
     parsed = parser.parse_args()
+
+    if parsed.audit_config_identities:
+        if (parsed.targets or parsed.batch or parsed.output or parsed.status
+                or parsed.with_domain or parsed.slug_only or parsed.merge_report
+                or parsed.append_new):
+            parser.error(
+                "--audit-config-identities cannot be combined with probing options")
+        try:
+            results = audit_config_identities(
+                parsed.audit_config_identities, workers=parsed.workers)
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f"❌ {exc}") from exc
+        print_identity_audit(results)
+        raise SystemExit(
+            1 if any(result["status"] != "verified" for result in results) else 0)
 
     if parsed.batch:
         if parsed.targets:
             parser.error("positional targets cannot be combined with --batch")
         try:
             if parsed.merge_report:
-                if parsed.output or parsed.status or parsed.with_domain:
+                if parsed.output or parsed.status or parsed.with_domain or parsed.slug_only:
                     parser.error(
-                        "--merge-report cannot be combined with --output, --status, or --with-domain")
-                merged = merge_probe_report(parsed.batch, parsed.merge_report)
+                        "--merge-report cannot be combined with probe selection options")
+                merged = merge_probe_report(
+                    parsed.batch, parsed.merge_report, append_new=parsed.append_new)
                 print(f"Merged probe evidence for {merged} candidate(s) into {parsed.batch}")
                 return
+            if parsed.append_new:
+                parser.error("--append-new requires --merge-report")
             report = batch_probe(
                 parsed.batch, parsed.workers, statuses=parsed.status,
-                with_domain=parsed.with_domain)
+                with_domain=parsed.with_domain,
+                use_derived_domains=not parsed.slug_only)
             print_batch_summary(report)
             if parsed.output:
                 write_report(report, parsed.output)
@@ -869,8 +1316,11 @@ def main():
 
     if parsed.output:
         parser.error("--output requires --batch")
-    if parsed.status or parsed.with_domain or parsed.merge_report:
-        parser.error("--status, --with-domain, and --merge-report require --batch")
+    if (parsed.status or parsed.with_domain or parsed.slug_only or parsed.merge_report
+            or parsed.append_new):
+        parser.error(
+            "--status, --with-domain, --slug-only, --merge-report, and --append-new "
+            "require --batch")
     if not parsed.targets:
         parser.print_help()
         raise SystemExit(2)
