@@ -183,6 +183,23 @@ class TestStateAndDelivery(unittest.TestCase):
             self.assertEqual(json.load(stream)["Example"]["jobs"], ["1"])
         self.assertFalse(any(name.endswith(".tmp") for name in os.listdir(tmpdir)))
 
+    def test_save_if_dirty_checkpoints_health_without_seen_jobs(self):
+        path = os.path.join(tmpdir, "incremental-state.json")
+        state = hh.StateManager(path)
+        state.record_source_run("Completed", "greenhouse", True, 0, 0.1, 1)
+        state.save_if_dirty()
+        with open(path) as stream:
+            persisted = json.load(stream)
+        self.assertIn("Completed", persisted["_health"])
+        self.assertNotIn("Completed", persisted)
+        self.assertFalse(state.dirty)
+
+    def test_save_if_dirty_skips_clean_state(self):
+        state = hh.StateManager(os.path.join(tmpdir, "clean-state.json"))
+        with mock.patch.object(state, "save") as save:
+            state.save_if_dirty()
+        save.assert_not_called()
+
     def test_explicit_shard_state_is_isolated(self):
         first = hh.StateManager("state.shard-0-of-2.json")
         first.mark_job("Example", "1")

@@ -44,6 +44,7 @@ class StateManager:
     def __init__(self, state_file=None):
         self.path = state_file or STATE_FILE
         self.state = {}
+        self.dirty = False
         if os.path.exists(self.path):
             try:
                 with open(self.path, 'r') as f:
@@ -101,6 +102,7 @@ class StateManager:
         company = self._resolve(company)
         if company not in self.state:
             self.state[company] = {"jobs": [], "hash": ""}
+            self.dirty = True
         return company
 
     def is_new_job(self, company, job_id):
@@ -112,6 +114,7 @@ class StateManager:
         entry = self.state[company]
         if job_id not in entry["jobs"]:
             entry["jobs"].append(job_id)
+            self.dirty = True
             # First-seen timestamp enables expiry pruning (prune_expired_jobs)
             # without changing the jobs list's shape or existing consumers.
             entry.setdefault("seen", {}).setdefault(str(job_id), int(time.time()))
@@ -122,16 +125,20 @@ class StateManager:
 
     def set_hash(self, company, content_hash):
         company = self._ensure(company)
-        self.state[company]["hash"] = content_hash
+        if self.state[company].get("hash") != content_hash:
+            self.state[company]["hash"] = content_hash
+            self.dirty = True
 
     def queue_alert(self, message):
         self.state.setdefault("_pending", []).append({"message": message, "attempts": 0})
+        self.dirty = True
 
     def flush_pending(self, notifier, max_attempts=5):
         """Retry alerts that failed to deliver in previous runs."""
         pending = self.state.get("_pending", [])
         if not pending:
             return
+        self.dirty = True
         print(f"📬 Retrying {len(pending)} pending alert(s) from previous runs...")
         still_pending = []
         for entry in pending:
@@ -152,12 +159,15 @@ class StateManager:
         if not entry["alerted"]:
             entry["count"] += 1
             entry["reason"] = str(reason)[:200]
+            self.dirty = True
         return entry
 
     def record_success(self, source):
         """Clear a source's failure streak. Returns True if it had been
         alerted as failing (i.e. this is a recovery worth announcing)."""
         entry = self.state.get("_failures", {}).pop(source, None)
+        if entry is not None:
+            self.dirty = True
         return bool(entry and entry.get("alerted"))
 
     def sources_needing_alert(self):
@@ -170,6 +180,7 @@ class StateManager:
     def mark_failure_alerted(self, source):
         if source in self.state.get("_failures", {}):
             self.state["_failures"][source]["alerted"] = True
+            self.dirty = True
 
     def failing_now(self):
         return self.state.get("_failures", {})
@@ -191,6 +202,7 @@ class StateManager:
             for name in [n for n in rows if n.casefold() not in keep]:
                 del rows[name]
                 removed.append(name)
+                self.dirty = True
             if not rows:
                 self.state.pop(bucket, None)
         return sorted(set(removed))
@@ -205,6 +217,7 @@ class StateManager:
         finds.append([time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), count])
         cutoff = time.time() - 7 * 86400
         stats["finds"] = [f for f in finds if _parse_ts(f[0]) >= cutoff]
+        self.dirty = True
 
     def record_source_run(self, source, source_type, success, match_count,
                           duration_seconds, request_count, reason=None):
@@ -232,6 +245,7 @@ class StateManager:
             entry["last_success"] = previous.get("last_success")
             entry["reason"] = str(reason)[:200]
         health[source] = entry
+        self.dirty = True
 
     def new_jobs_since(self, seconds):
         cutoff = time.time() - seconds
@@ -261,6 +275,7 @@ class StateManager:
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(temp_path, target)
+            self.dirty = False
         except Exception:
             if temp_path:
                 try:
@@ -268,6 +283,11 @@ class StateManager:
                 except OSError:
                     pass
             raise
+
+    def save_if_dirty(self):
+        """Checkpoint state only when a mutating operation changed it."""
+        if self.dirty:
+            self.save()
 
 class Notifier:
     def __init__(self, config):
@@ -2244,7 +2264,7 @@ def main():
         # Checkpoint the flush immediately: a successful redelivery must be
         # recorded before the crawl can fail, or a crash would resend the
         # same alert next run (delivery-before-dedup, extended to retries).
-        state_manager.save()
+        state_manager.save_if_dirty()
 
     new_jobs = []       # matches to notify, marked seen only after delivery
     page_changes = []   # custom-page changes, hash saved only after delivery
@@ -2314,7 +2334,8 @@ def main():
 
     # Workers complete out of order, but state/digest updates and the visible
     # result table remain in config order for reproducible Actions summaries.
-    for result in sorted(results, key=lambda item: item["index"]):
+    for completed_ats, result in enumerate(
+            sorted(results, key=lambda item: item["index"]), 1):
         comp = result["comp"]
         name, ats_type = comp["name"], comp["ats"]
         error = result["error"]
@@ -2328,6 +2349,8 @@ def main():
                     name, ats_type, False, None, result["duration"],
                     result["request_count"], reason=error)
             source_failures += 1
+            if not test_mode and completed_ats % 25 == 0:
+                state_manager.save_if_dirty()
             continue
 
         run_report.append((name, f"✅ {len(matches)} match(es)"))
@@ -2344,6 +2367,8 @@ def main():
                 print(f"      → {m['title']} | {m['location']}")
             if len(matches) > 3:
                 print(f"      ... and {len(matches) - 3} more")
+            if not test_mode and completed_ats % 25 == 0:
+                state_manager.save_if_dirty()
             continue
 
         for match in matches:
@@ -2355,6 +2380,12 @@ def main():
                 seeded_jobs += 1
             else:
                 new_jobs.append({"company": name, **match})
+        if not test_mode and completed_ats % 25 == 0:
+            state_manager.save_if_dirty()
+
+    # Persist source health/failure progress before Playwright work begins.
+    if not test_mode:
+        state_manager.save_if_dirty()
 
     # 2. Process Custom Web Pages
     if hunt_pages:
@@ -2384,6 +2415,8 @@ def main():
                     name, "custom_page", False, None,
                     time.monotonic() - source_started, 1, reason=failed_reason)
             source_failures += 1
+            if not test_mode:
+                state_manager.save_if_dirty()
             continue
 
         health_match_count = (
@@ -2416,6 +2449,8 @@ def main():
                     seeded_jobs += 1
                 else:
                     new_jobs.append({"company": name, **match})
+            if not test_mode:
+                state_manager.save_if_dirty()
             continue
 
         if test_mode:
@@ -2429,9 +2464,11 @@ def main():
             # Store the baseline hash without alerting when keywords/locations don't match.
             state_manager.set_hash(name, result["hash"])
             run_report.append((name, "— no keyword/location match"))
+            state_manager.save_if_dirty()
             continue
         if not state_manager.hash_changed(name, result["hash"]):
             run_report.append((name, "✅ no change"))
+            state_manager.save_if_dirty()
             continue
         # Confirm the change before alerting. A hash is only as stable as the
         # render that produced it: a slow-loading page can serve enough text to
@@ -2444,6 +2481,7 @@ def main():
             detail = confirmation.get("failed") or "hash did not reproduce"
             print(f"  ~ {name}: change not confirmed ({detail}); leaving baseline alone")
             run_report.append((name, f"~ unconfirmed change ({detail})"))
+            state_manager.save_if_dirty()
             continue
         run_report.append((name, "✅ CHANGED"))
         if seed_mode:
@@ -2451,6 +2489,7 @@ def main():
             seeded_pages += 1
         else:
             page_changes.append({"name": name, "url": url, "hash": result["hash"]})
+        state_manager.save_if_dirty()
 
     custom_hunter.close()
 
@@ -2487,7 +2526,7 @@ def main():
              + list(config.get("custom_pages") or [])])
         if pruned:
             print(f"🧹 Pruned state for removed source(s): {', '.join(pruned)}")
-        state_manager.save()
+        state_manager.save_if_dirty()
     write_step_summary(run_report, new_jobs, state_manager)
 
     if source_failures:
