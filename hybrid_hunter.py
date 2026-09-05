@@ -784,7 +784,7 @@ class ATSHunter:
                     continue
                 address = place.get("address") if isinstance(place.get("address"), dict) else place
                 parts = [address.get(key) for key in (
-                    "streetAddress", "addressLocality", "addressRegion", "postalCode", "addressCountry")
+                    "addressLocality", "addressRegion", "addressCountry")
                          if isinstance(address, dict) and address.get(key)]
                 if parts:
                     rendered_locations.append(", ".join(str(part) for part in parts))
