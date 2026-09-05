@@ -1,4 +1,5 @@
 """Offline tests for candidate discovery and reviewed batch onboarding."""
+import argparse
 import csv
 import json
 import os
@@ -116,6 +117,20 @@ class TestCandidateLedger(unittest.TestCase):
         self.assertEqual(result["suggested_entry"], entry)
         self.assertEqual(result["company_domain"], "example.com")
         self.assertEqual(result["live_postings"], 7)
+
+    def test_single_source_onboarding_uses_derived_domain_after_slug_miss(self):
+        entry = {"name": "Example", "ats": "workday", "tenant": "example",
+                 "wd_host": "wd1", "site": "External", "search": "internship"}
+        with mock.patch.object(add_source.probe, "probe_name", return_value=[]), \
+                mock.patch.object(
+                    add_source.probe, "probe_derived_domains",
+                    return_value=(entry, 4, "example.com",
+                                  "https://example.wd1.myworkdayjobs.com/External", [], [])):
+            resolved, count = add_source.resolve_entry(
+                argparse.Namespace(name="Example", ats=None, url=None,
+                                   search=None, max_pages=None))
+        self.assertEqual(resolved, entry)
+        self.assertEqual(count, 4)
 
     def test_unresolvable_derived_domains_stay_not_found(self):
         # A guessed domain that does not resolve is an expected miss, not an

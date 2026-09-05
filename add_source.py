@@ -139,11 +139,29 @@ def resolve_entry(args):
     print(f"Probing slug candidates: {', '.join(probe.slug_candidates(args.name))}")
     hits = probe.probe_name(args.name)
     if not hits:
+        # Slug probing only covers three ATSes.  A single-name onboarding
+        # attempt should still discover Workday/Workable/SmartRecruiters by
+        # trying a small set of company-domain guesses.  Domain misses are a
+        # clean not-found result; probe_derived_domains deliberately returns
+        # transport errors separately so a flaky DNS lookup is not presented
+        # as evidence that the company has no board.
+        entry, info, domain, discovered_url, errors, unsupported = (
+            probe.probe_derived_domains(args.name))
+        if entry:
+            print(f"✅ Discovered {entry['ats']} board at {discovered_url} "
+                  f"via {domain} ({info} live postings).")
+            return entry, info
+        detail = ""
+        if unsupported:
+            detail = (" Known unsupported ATS fingerprints were found; add the "
+                      "adapter manually or use a custom page.")
         raise SystemExit(
-            "❌ No Greenhouse/Ashby/Lever board found for that name.\n"
+            "❌ No supported ATS board found for that name after slug and "
+            "derived-domain probing.\n"
             "   Retry with the careers page URL (detects Workday/Eightfold too):\n"
             f"   python3 add_source.py \"{args.name}\" --url https://...\n"
-            "   JS-only board or program page? See .agents/skills/add-source.")
+            "   JS-only board or program page? See .agents/skills/add-source."
+            + detail)
     best = max(hits, key=lambda h: h["jobs"])
     if len(hits) > 1 or not probe.slug_is_high_confidence(args.name, best["slug"]):
         for hit in hits:
