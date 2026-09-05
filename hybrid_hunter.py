@@ -731,6 +731,78 @@ class ATSHunter:
         self.last_raw_ids = raw_ids
         return matches
 
+    def hunt_jsonld(self, url, allow_empty_jsonld=False, keywords=None):
+        """Read JobPosting objects embedded as JSON-LD on a public page."""
+        res = self._get(url, timeout=20, headers={
+            **API_HEADERS, "Accept": "text/html,application/xhtml+xml"})
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, "html.parser")
+        scripts = soup.find_all("script", attrs={"type": re.compile(
+            r"^application/ld\+json$", re.I)})
+        if not scripts and not allow_empty_jsonld:
+            raise ValueError("JSON-LD page contains no application/ld+json blocks")
+        objects = []
+        for script in scripts:
+            try:
+                decoded = json.loads(script.string or script.get_text())
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if isinstance(decoded, list):
+                objects.extend(decoded)
+            elif isinstance(decoded, dict) and isinstance(decoded.get("@graph"), list):
+                objects.extend(decoded["@graph"])
+                objects.append(decoded)
+            elif isinstance(decoded, dict):
+                objects.append(decoded)
+        postings = []
+        for obj in objects:
+            if not isinstance(obj, dict):
+                continue
+            types = obj.get("@type")
+            if isinstance(types, str):
+                types = [types]
+            if not isinstance(types, list) or not any(
+                    str(value).casefold() == "jobposting" for value in types):
+                continue
+            identifier = obj.get("identifier")
+            if isinstance(identifier, dict):
+                identifier = identifier.get("value") or identifier.get("name")
+            job_url = obj.get("url") or url
+            title = obj.get("title")
+            location = obj.get("jobLocation") or obj.get("applicantLocationRequirements")
+            locations = location if isinstance(location, list) else [location]
+            rendered_locations = []
+            for place in locations:
+                if not isinstance(place, dict):
+                    continue
+                address = place.get("address") if isinstance(place.get("address"), dict) else place
+                parts = [address.get(key) for key in (
+                    "streetAddress", "addressLocality", "addressRegion", "postalCode", "addressCountry")
+                         if isinstance(address, dict) and address.get(key)]
+                if parts:
+                    rendered_locations.append(", ".join(str(part) for part in parts))
+            location_text = " / ".join(dict.fromkeys(rendered_locations))
+            if not identifier:
+                identifier = job_url
+            if (not isinstance(identifier, (str, int)) or not str(identifier).strip()
+                    or not isinstance(title, str) or not title.strip()
+                    or not isinstance(job_url, str) or not job_url.strip()
+                    or not location_text):
+                continue
+            postings.append((str(identifier), title, location_text, job_url))
+        self.last_raw_count = len(postings)
+        raw_ids = set()
+        matches = []
+        for job_id, title, location_text, job_url in postings:
+            if job_id in raw_ids:
+                continue
+            raw_ids.add(job_id)
+            if self.matches_criteria(title, location_text, keywords):
+                matches.append({"id": job_id, "title": title,
+                                "location": location_text, "url": job_url})
+        self.last_raw_ids = raw_ids
+        return matches
+
     def hunt_smartrecruiters(self, company_id, country=None, query=None,
                              queries=None, keywords=None):
         """Hunt SmartRecruiters' public Posting API within four requests."""
@@ -1550,6 +1622,8 @@ def ats_request_group(comp):
         return f"eightfold:{urlparse(str(comp.get('base_url', ''))).netloc.casefold()}"
     if ats_type == "oracle_hcm":
         return f"oracle_hcm:{str(comp.get('host', '')).casefold()}"
+    if ats_type == "jsonld":
+        return f"jsonld:{urlparse(str(comp.get('url', ''))).netloc.casefold()}"
     if ats_type == "amazon":
         return "amazon:amazon.jobs"
     return ats_type
@@ -1571,6 +1645,10 @@ def _hunt_ats_entry(comp, config, semaphores):
                 matches = hunter.hunt_lever(comp["slug"], keywords=kw_override)
             elif ats_type == "greenhouse":
                 matches = hunter.hunt_greenhouse(comp["slug"], keywords=kw_override)
+            elif ats_type == "jsonld":
+                matches = hunter.hunt_jsonld(
+                    comp["url"], allow_empty_jsonld=comp.get("allow_empty_jsonld", False),
+                    keywords=kw_override)
             elif ats_type == "smartrecruiters":
                 matches = hunter.hunt_smartrecruiters(
                     company_id=comp["company_id"], country=comp.get("country"),
@@ -2053,6 +2131,7 @@ REQUIRED_ATS_FIELDS = {
     "workday": ("tenant", "site"),
     "eightfold": ("base_url", "domain"),
     "oracle_hcm": ("site_number", "host"),
+    "jsonld": ("url",),
 }
 KNOWN_ATS_TYPES = set(REQUIRED_ATS_FIELDS) | {
     "amazon", "atlassian", "google", "intuit", "goldman_higher", "deshaw", "microsoft",
@@ -2174,6 +2253,8 @@ def validate_config(config):
             key = (ats, str(entry.get("account") or ""))
         elif ats == "oracle_hcm":
             key = (ats, str(entry.get("host") or ""), str(entry.get("site_number") or ""))
+        elif ats == "jsonld":
+            key = (ats, str(entry.get("url") or ""))
         else:
             continue
         board_identities.setdefault(key, []).append(entry["name"])

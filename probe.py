@@ -736,6 +736,20 @@ def probe_url(url, name=None):
                  "base_url": base_url, "domain": domain,
                  "query": "intern", "location": "India"}, count)
 
+    # A generic public job page may expose only schema.org JobPosting data.
+    # Inspect the page once to recognize that adapter; the crawler performs
+    # the authoritative parse during its subsequent --test verification.
+    try:
+        response = requests.get(url, timeout=TIMEOUT, headers={
+            **HEADERS, "Accept": "text/html,application/xhtml+xml"})
+        if response.status_code < 400:
+            soup = BeautifulSoup(response.text, "html.parser")
+            if soup.find("script", attrs={"type": re.compile(
+                    r"^application/ld\+json$", re.I)}):
+                return ({"name": name or host, "ats": "jsonld", "url": url}, None)
+    except requests.RequestException:
+        pass
+
     return None, ("URL not recognized as a supported ATS. If the board is "
                   "JS-rendered, add it as a custom page instead (see "
                   ".agents/skills/add-source and diagnose.py).")

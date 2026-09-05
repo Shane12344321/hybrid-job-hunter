@@ -1,7 +1,7 @@
 # Hybrid Job Hunter 🎯
 
 A hybrid job hunting automation script that combines the best of both worlds:
-1. **API/structured-source precision** for standard ATS boards and official careers feeds (Ashby, Lever, Greenhouse, SmartRecruiters, Workable, Oracle HCM, Workday, Eightfold, Amazon, Google, Intuit, Goldman Higher, D. E. Shaw) - *Fast, reliable, job-level deduplication.*
+1. **API/structured-source precision** for standard ATS boards and official careers feeds (Ashby, Lever, Greenhouse, SmartRecruiters, Workable, Oracle HCM, Workday, Eightfold, Amazon, Google, Intuit, Goldman Higher, D. E. Shaw, JSON-LD) - *Fast, reliable, job-level deduplication.*
 2. **JS-rendering web scraper** using Playwright for custom careers pages and structured JS-only boards - *Handles dynamic content and JavaScript.*
 
 ### Supported ATS types
@@ -23,6 +23,7 @@ A hybrid job hunting automation script that combines the best of both worlds:
 | `intuit` | Intuit TalentBrew search | optional `query`, `location` |
 | `goldman_higher` | Goldman Sachs Higher campus GraphQL search | optional `search`, `location` |
 | `deshaw` | D. E. Shaw's official public internships page | worldwide by design; optional `keywords` |
+| `jsonld` | Schema.org `JobPosting` JSON-LD embedded in a public page | `url`, optional `allow_empty_jsonld` |
 
 Every hunter raises on failure (network error, non-200, bad JSON/HTML, missing
 result markers, or truncated pagination), so a dead source is told apart from

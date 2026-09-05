@@ -162,6 +162,40 @@ class TestSmartRecruiters(unittest.TestCase):
         self.assertEqual(get.call_count, 2)
 
 
+class TestJSONLD(unittest.TestCase):
+    def setUp(self):
+        self.hunter = hh.ATSHunter({
+            "keywords": ["intern"], "exclude_keywords": [], "locations": ["india"],
+        })
+
+    def response(self, text):
+        response = mock.Mock(status_code=200, text=text)
+        response.raise_for_status.return_value = None
+        return response
+
+    def test_parses_arrays_graphs_and_ignores_one_malformed_block(self):
+        html = """
+        <script type="application/ld+json">{bad json</script>
+        <script type="application/ld+json">[{"@type":"JobPosting","identifier":{"value":"j1"},
+          "title":"Software Intern","url":"https://example.test/j1",
+          "jobLocation":{"address":{"addressLocality":"Bengaluru","addressCountry":"India"}}},
+          {"@type":"Person","name":"Ignore"}]</script>
+        <script type="application/ld+json">{"@graph":[{"@type":"JobPosting","identifier":"j2",
+          "title":"Research Intern","jobLocation":{"address":{"addressCountry":"India"}}}]}</script>
+        """
+        with mock.patch.object(hh.requests, "get", return_value=self.response(html)):
+            jobs = self.hunter.hunt_jsonld("https://example.test/careers")
+        self.assertEqual([job["id"] for job in jobs], ["j1", "j2"])
+        self.assertEqual(self.hunter.last_raw_count, 2)
+
+    def test_missing_blocks_fail_unless_explicitly_allowed(self):
+        with mock.patch.object(hh.requests, "get", return_value=self.response("<html></html>")):
+            with self.assertRaisesRegex(ValueError, "no application/ld"):
+                self.hunter.hunt_jsonld("https://example.test/job")
+            self.assertEqual(self.hunter.hunt_jsonld(
+                "https://example.test/job", allow_empty_jsonld=True), [])
+
+
 class TestWorkable(unittest.TestCase):
     def setUp(self):
         self.hunter = hh.ATSHunter({
