@@ -15,6 +15,7 @@ sys.path.insert(0, REPO_DIR)
 
 import add_source
 import catalog_report
+import diagnose
 import probe
 import testing_support
 
@@ -673,11 +674,17 @@ class TestReviewedBatch(unittest.TestCase):
                 yaml.safe_dump({"candidates": [{
                     "name": "Verified", "status": "probed",
                     "probe_status": "verified_endpoint",
+                    "live_postings": 3,
                     "suggested_entry": {"name": "Verified", "ats": "ashby", "slug": "verified"},
                 }, {"name": "Needs review", "status": "probed"}]}, stream)
+            refreshed = probe.load_candidates(report)
+            refreshed[0].update({"probe_status": "verified_endpoint", "live_postings": 3,
+                                 "suggested_entry": {"name": "Verified", "ats": "ashby", "slug": "verified"}})
             with mock.patch.object(add_source, "CONFIG_FILE", os.path.join(directory, "config.yaml")), \
                     mock.patch.object(add_source, "batch_command",
-                                      return_value=(["python", "ok"], None)) as build:
+                                      return_value=(["python", "ok"], None)) as build, \
+                    mock.patch.object(add_source.probe, "batch_probe",
+                                      return_value={"candidates": refreshed}):
                 with open(add_source.CONFIG_FILE, "w") as stream:
                     yaml.safe_dump({"ats_companies": [], "custom_pages": []}, stream)
                 add_source.run_batch(report, auto_approve_verified=True, review_out=review)
@@ -685,6 +692,24 @@ class TestReviewedBatch(unittest.TestCase):
             with open(review, encoding="utf-8") as stream:
                 payload = json.load(stream)
             self.assertTrue(payload["candidates"][0]["auto_approved"])
+
+    def test_apply_advances_successful_yaml_rows_to_active(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = os.path.join(directory, "report.yaml")
+            config = os.path.join(directory, "config.yaml")
+            with open(report, "w") as stream:
+                yaml.safe_dump({"candidates": [{
+                    "name": "Verified", "status": "probed", "approved": True,
+                    "suggested_entry": {"name": "Verified", "ats": "ashby", "slug": "verified"},
+                }]}, stream)
+            with open(config, "w") as stream:
+                yaml.safe_dump({"ats_companies": [], "custom_pages": []}, stream)
+            successful = mock.Mock(returncode=0)
+            with mock.patch.object(add_source, "CONFIG_FILE", config), \
+                    mock.patch.object(add_source.subprocess, "run", return_value=successful):
+                add_source.run_batch(report, apply=True)
+            rows = probe.load_candidates(report)
+            self.assertEqual(rows[0]["status"], "active")
 
     def test_generic_ats_fields_support_oracle_hcm(self):
         args = argparse.Namespace(
@@ -856,6 +881,39 @@ class TestReviewedBatch(unittest.TestCase):
                 self.assertEqual(stream.read(), original_config)
             with open(state_path, "rb") as stream:
                 self.assertEqual(stream.read(), original_state)
+
+
+class TestSelectorSuggestions(unittest.TestCase):
+    def test_repeated_job_cards_are_suggested_and_ranked_by_keyword(self):
+        html = """
+        <main><article class="job-card"><a href="/jobs/101"><h2>Software Intern</h2></a></article>
+        <article class="job-card"><a href="/jobs/102"><h2>Research Intern</h2></a></article>
+        <article class="job-card"><a href="/jobs/103"><h2>Senior Engineer</h2></a></article></main>
+        """
+        snippets = diagnose.suggest_selector_snippets(html, ["intern"])
+        self.assertEqual(snippets[0]["job_selector"], "article.job-card")
+        self.assertEqual(snippets[0]["title_selector"], "h2")
+        self.assertEqual(snippets[0]["id_regex"], r"/(\d+)(?:[/?#]|$)")
+
+    def test_unique_classes_are_not_suggested(self):
+        self.assertEqual(
+            diagnose.suggest_selectors('<div class="hero">Jobs</div>', ["intern"]), [])
+
+    def test_diagnose_page_prints_verified_as_suggestions_from_rendered_content(self):
+        html = ''.join(
+            f'<article class="job-card"><a href="/jobs/{100 + i}">'
+            f'<h2>Software Intern {i}</h2></a></article>' for i in range(3))
+        page = mock.Mock()
+        page.goto.return_value = mock.Mock(ok=True, status=200)
+        page.content.return_value = f"<body>{html}{' details ' * 80}</body>"
+        browser = mock.Mock()
+        browser.new_page.return_value = page
+        with mock.patch.object(diagnose.time, "sleep"), \
+                mock.patch("builtins.print") as output:
+            self.assertTrue(diagnose.diagnose_page(
+                browser, {"name": "Example", "url": "https://example.test"},
+                ["intern"], suggest=True))
+        self.assertIn("article.job-card", " ".join(str(call) for call in output.call_args_list))
 
 
 class TestCatalogReport(unittest.TestCase):

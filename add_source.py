@@ -136,7 +136,13 @@ def resolve_entry(args):
     if getattr(args, "from_job_url", None):
         parsed = probe.parse_job_url(args.from_job_url)
         if not parsed:
-            raise SystemExit("❌ Could not recognize a supported ATS job URL.")
+            # Preserve --url semantics for custom/unknown job URLs: the
+            # regular careers-page probe may still recognize Eightfold or
+            # JSON-LD even when the concrete URL has no stable pattern.
+            entry, info = probe.probe_url(args.from_job_url, name=args.name)
+            if not entry:
+                raise SystemExit(f"❌ {info}")
+            return entry, info
         parsed["name"] = args.name
         # A concrete posting is only an identifier hint.  Return an unknown
         # count so the normal post-insert --test remains the source of truth.
@@ -338,6 +344,14 @@ def run_batch(path, apply=False, no_seed=False, approved_names=None,
         candidates = probe.load_candidates(path)
     except (OSError, ValueError) as exc:
         raise SystemExit(f"❌ {exc}") from exc
+    if auto_approve_verified:
+        # Refresh evidence in the same bounded-concurrency probe path used by
+        # probe.py.  The input ledger remains untouched until --apply succeeds.
+        try:
+            refreshed = probe.batch_probe(path)
+            candidates = refreshed["candidates"]
+        except (OSError, ValueError, KeyError) as exc:
+            raise SystemExit(f"❌ batch probing failed: {exc}") from exc
     approved_names = {name.casefold() for name in (approved_names or [])}
     known_names = {candidate["name"].casefold() for candidate in candidates}
     unknown_approvals = approved_names - known_names
@@ -362,7 +376,9 @@ def run_batch(path, apply=False, no_seed=False, approved_names=None,
     for candidate in candidates:
         if (auto_approve_verified
                 and candidate.get("probe_status") == "verified_endpoint"
-                and isinstance(candidate.get("suggested_entry"), dict)):
+                and isinstance(candidate.get("suggested_entry"), dict)
+                and isinstance(candidate.get("live_postings"), int)
+                and candidate.get("live_postings", 0) >= 1):
             candidate["approved"] = True
             candidate["auto_approved"] = True
         if candidate["name"].casefold() in approved_names:
@@ -387,6 +403,16 @@ def run_batch(path, apply=False, no_seed=False, approved_names=None,
         print(f"  {'▶' if apply else 'DRY RUN'} {name}: {printable}")
 
     if review_out:
+        command_names = {name.casefold() for name, _ in commands}
+        for candidate in candidates:
+            if candidate["name"].casefold() in command_names:
+                continue
+            candidate.setdefault(
+                "review_reason",
+                candidate.get("reason")
+                or ("verified endpoint has no live postings"
+                    if candidate.get("probe_status") == "verified_endpoint"
+                    else f"probe status: {candidate.get('probe_status', 'not approved')}"))
         write_review_report(review_out, candidates, commands, skipped)
         print(f"Review artifact written to {review_out}")
 
@@ -397,12 +423,29 @@ def run_batch(path, apply=False, no_seed=False, approved_names=None,
         raise SystemExit("❌ No approved, actionable candidates to apply.")
 
     failures = []
+    succeeded = []
     for name, command in commands:
         print(f"\n{'=' * 60}\nAdding {name}\n{'=' * 60}")
         proc = subprocess.run(command, text=True)
         if proc.returncode:
             failures.append(name)
             print(f"❌ {name} failed; continuing so other independently reviewed entries can run.")
+        else:
+            succeeded.append(name.casefold())
+    if succeeded and os.path.splitext(path)[1].lower() in (".yaml", ".yml"):
+        by_name = {candidate["name"].casefold(): candidate for candidate in candidates}
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        for key in succeeded:
+            candidate = by_name.get(key)
+            if not candidate:
+                continue
+            candidate["status"] = "active"
+            candidate["activated_at"] = now
+            if isinstance(candidate.get("suggested_entry"), dict):
+                candidate["active_source"] = candidate["suggested_entry"]
+        with open(path, "w", encoding="utf-8") as stream:
+            yaml.safe_dump({"version": 1, "candidates": candidates},
+                           stream, sort_keys=False, width=1000)
     if failures:
         raise SystemExit(
             "❌ Batch completed with failures: " + ", ".join(failures)
