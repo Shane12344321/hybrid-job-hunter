@@ -677,6 +677,30 @@ def discover_careers_urls(domain):
     return found + [url for url in fallbacks if url not in found], errors
 
 
+def _contains_jobposting_jsonld(html):
+    """Return true only when a JSON-LD block contains a JobPosting object."""
+    soup = BeautifulSoup(html, "html.parser")
+    for script in soup.find_all("script", attrs={"type": re.compile(
+            r"^application/ld\+json$", re.I)}):
+        try:
+            payload = json.loads(script.string or script.get_text())
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        values = payload if isinstance(payload, list) else (
+            payload.get("@graph", []) if isinstance(payload, dict)
+            and isinstance(payload.get("@graph"), list) else [payload])
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            types = value.get("@type")
+            if isinstance(types, str):
+                types = [types]
+            if isinstance(types, list) and any(
+                    str(item).casefold() == "jobposting" for item in types):
+                return True
+    return False
+
+
 def probe_url(url, name=None):
     """Recognize an ATS from a careers URL. Returns (entry, live_count) on
     success or (None, reason) on failure. `live_count` is None when the URL
@@ -756,9 +780,7 @@ def probe_url(url, name=None):
         response = requests.get(url, timeout=TIMEOUT, headers={
             **HEADERS, "Accept": "text/html,application/xhtml+xml"})
         if response.status_code < 400:
-            soup = BeautifulSoup(response.text, "html.parser")
-            if soup.find("script", attrs={"type": re.compile(
-                    r"^application/ld\+json$", re.I)}):
+            if _contains_jobposting_jsonld(response.text):
                 return ({"name": name or host, "ats": "jsonld", "url": url}, None)
     except requests.RequestException:
         pass

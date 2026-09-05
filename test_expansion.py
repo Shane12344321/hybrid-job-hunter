@@ -162,6 +162,15 @@ class TestCandidateLedger(unittest.TestCase):
                 self.assertEqual(probe.parse_job_url(url), expected)
         self.assertIsNone(probe.parse_job_url("https://example.test/jobs/123"))
 
+    def test_jsonld_url_probe_requires_a_jobposting_type(self):
+        response = mock.Mock(status_code=200, text=(
+            '<script type="application/ld+json">{"@type":"Person"}</script>'))
+        with mock.patch.object(probe, "check_eightfold", return_value=None), \
+                mock.patch.object(probe.requests, "get", return_value=response):
+            entry, reason = probe.probe_url("https://example.test/jobs/123", name="Example")
+        self.assertIsNone(entry)
+        self.assertIn("not recognized", reason)
+
     def test_unresolvable_derived_domains_stay_not_found(self):
         # A guessed domain that does not resolve is an expected miss, not an
         # unreliable probe — it must never be upgraded to "failed", which would
