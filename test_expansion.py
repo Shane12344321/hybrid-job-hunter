@@ -770,6 +770,16 @@ class TestReviewedBatch(unittest.TestCase):
         self.assertIn("--slug", command)
         self.assertIn("--comment", command)
 
+    def test_batch_command_forwards_generic_jsonld_fields(self):
+        command, reason = add_source.batch_command({
+            "name": "Example", "status": "probed", "approved": True,
+            "suggested_entry": {"name": "Example", "ats": "jsonld",
+                                 "url": "https://example.test/jobs"},
+        }, no_seed=True)
+        self.assertIsNone(reason)
+        self.assertIn("--field", command)
+        self.assertIn("url=https://example.test/jobs", command)
+
     def test_batch_empty_board_override_is_explicitly_forwarded(self):
         command, reason = add_source.batch_command({
             "name": "Example", "status": "probed", "approved": True,

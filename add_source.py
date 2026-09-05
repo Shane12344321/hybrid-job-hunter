@@ -304,7 +304,21 @@ def batch_command(candidate, no_seed=False, allow_empty=False):
                 return None, "workable suggestion is missing account"
             command.extend(["--account", str(entry["account"])])
         else:
-            return None, f"batch onboarding does not support explicit ats '{ats}'"
+            # Generic field forwarding keeps reviewed batch onboarding aligned
+            # with every adapter declared by hybrid_hunter, including JSON-LD
+            # and enterprise adapters that have no dedicated CLI aliases.
+            try:
+                import hybrid_hunter
+                if ats not in hybrid_hunter.KNOWN_ATS_TYPES:
+                    return None, f"batch onboarding does not support explicit ats '{ats}'"
+            except ImportError:
+                return None, f"batch onboarding does not support explicit ats '{ats}'"
+            for key, value in entry.items():
+                if key in {"name", "ats"} or value is None:
+                    continue
+                if isinstance(value, (dict, list)):
+                    value = yaml.safe_dump(value, default_flow_style=True).strip()
+                command.extend(["--field", f"{key}={value}"])
     if no_seed:
         command.append("--no-seed")
     if allow_empty:
