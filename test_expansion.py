@@ -175,6 +175,23 @@ class TestCandidateLedger(unittest.TestCase):
         self.assertIn("derived domains", result["reason"])
         self.assertTrue(any("NXDOMAIN" in w for w in result["warnings"]))
 
+    def test_derived_domain_ambiguity_requires_review(self):
+        entries = [
+            ({"name": "Example", "ats": "workday", "tenant": "example",
+              "wd_host": "wd1", "site": "External"}, 4),
+            ({"name": "Example", "ats": "workable", "account": "example"}, 3),
+        ]
+        with mock.patch.object(probe, "probe_name_detailed", return_value=([], [])), \
+                mock.patch.object(probe, "domain_candidates", return_value=["example.com"]), \
+                mock.patch.object(probe, "discover_careers_urls", return_value=(
+                    ["https://example.wd1.myworkdayjobs.com/External",
+                     "https://apply.workable.com/example"], [])), \
+                mock.patch.object(probe, "probe_url", side_effect=entries), \
+                mock.patch.object(probe, "check_entry_identity", return_value=(True, "Example")):
+            result = probe.probe_candidate({"name": "Example", "status": "candidate"})
+        self.assertEqual(result["probe_status"], "needs_review")
+        self.assertIn("ambiguous", result["reason"])
+
     def test_derived_domain_retains_unsupported_ats_for_roadmap(self):
         blocked = [{
             "ats": "icims", "company_domain": "example.com",

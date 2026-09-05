@@ -192,6 +192,10 @@ def resolve_entry(args):
             print(f"✅ Discovered {entry['ats']} board at {discovered_url} "
                   f"via {domain} ({info} live postings).")
             return entry, info
+        if any("ambiguous derived-domain" in error for error in errors):
+            raise SystemExit(
+                "❌ Derived-domain probing found multiple supported boards; "
+                "refusing to guess. Use --url or explicit --ats fields.")
         detail = ""
         if unsupported:
             detail = (" Known unsupported ATS fingerprints were found; add the "

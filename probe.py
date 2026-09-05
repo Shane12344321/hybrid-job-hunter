@@ -174,6 +174,7 @@ def probe_derived_domains(name, limit=6):
     """
     errors = []
     unsupported = []
+    verified = []
     for domain in domain_candidates(name, limit=limit):
         try:
             urls, discovery_errors = discover_careers_urls(domain)
@@ -194,13 +195,23 @@ def probe_derived_domains(name, limit=6):
                 if identity_ok is not True:
                     errors.append(f"{url}: {identity_evidence}")
                     continue
-                return entry, info, domain, url, errors, unsupported
+                verified.append((entry, info, domain, url))
+                continue
             ats = fingerprint_unsupported_url(url)
             if ats:
                 unsupported.append({
                     "ats": ats, "company_domain": domain,
                     "careers_url": url, "reason": info,
                 })
+    if verified:
+        unique = {}
+        for item in verified:
+            unique.setdefault(yaml.safe_dump(item[0], sort_keys=True), item)
+        if len(unique) == 1:
+            return (*next(iter(unique.values())), errors, unsupported)
+        errors.append(
+            "ambiguous derived-domain discovery: "
+            + ", ".join(item[3] for item in unique.values()))
     return None, None, None, None, errors, unsupported
 
 
@@ -982,6 +993,13 @@ def probe_candidate(candidate, use_derived_domains=True):
                 "discovered_careers_url": url,
                 "live_postings": info,
                 "suggested_entry": entry,
+            })
+            return result
+        ambiguous = [error for error in domain_errors if "ambiguous derived-domain" in error]
+        if ambiguous:
+            result.update({
+                "status": "probed", "probe_status": "needs_review",
+                "reason": ambiguous[0], "warnings": ambiguous,
             })
             return result
         if unsupported:
