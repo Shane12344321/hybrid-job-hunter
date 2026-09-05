@@ -659,6 +659,28 @@ class TestCandidateLedger(unittest.TestCase):
 
 
 class TestReviewedBatch(unittest.TestCase):
+    def test_generic_ats_fields_support_oracle_hcm(self):
+        args = argparse.Namespace(
+            name="Oracle", ats="oracle_hcm", field=["host=careers.example.com",
+                                                     "site_number=123"],
+            slug=None, company_id=None, query=None, country=None, account=None,
+            tenant=None, site=None, wd_host="wd5", search=None, max_pages=None,
+            base_url=None, domain=None)
+        entry, count = add_source.build_explicit_entry(args)
+        self.assertEqual(entry["ats"], "oracle_hcm")
+        self.assertEqual(entry["site_number"], "123")
+        self.assertIsNone(count)
+
+    def test_generic_ats_fields_reject_missing_required_and_unknown_type(self):
+        base = dict(name="Example", field=["host=example.test"], slug=None,
+                    company_id=None, query=None, country=None, account=None,
+                    tenant=None, site=None, wd_host="wd5", search=None,
+                    max_pages=None, base_url=None, domain=None)
+        with self.assertRaisesRegex(SystemExit, "site_number"):
+            add_source.build_explicit_entry(argparse.Namespace(**base, ats="oracle_hcm"))
+        with self.assertRaisesRegex(SystemExit, "known adapter"):
+            add_source.build_explicit_entry(argparse.Namespace(**base, ats="madeup"))
+
     def test_unapproved_candidate_never_builds_command(self):
         command, reason = add_source.batch_command({
             "name": "Example", "status": "probed",

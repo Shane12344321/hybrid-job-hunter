@@ -37,6 +37,33 @@ STATE_FILE = "state.json"
 def build_explicit_entry(args):
     """Build and live-verify an entry from explicit --ats flags."""
     name, ats = args.name, args.ats
+    if args.field:
+        try:
+            import hybrid_hunter
+            known = hybrid_hunter.KNOWN_ATS_TYPES
+            required = hybrid_hunter.REQUIRED_ATS_FIELDS.get(ats)
+        except ImportError:
+            known = set(probe.SLUG_CHECKERS and ("greenhouse", "ashby", "lever"))
+            required = None
+        if ats not in known:
+            raise SystemExit(f"--ats {ats} isn't a known adapter")
+        fields = {}
+        for item in args.field:
+            if "=" not in item:
+                raise SystemExit(f"--field must use key=value (got {item!r})")
+            key, value = item.split("=", 1)
+            key = key.strip()
+            if not key or not value.strip():
+                raise SystemExit(f"--field must use a non-empty key and value (got {item!r})")
+            fields[key] = value
+        missing = [field for field in (required or ()) if not fields.get(field)]
+        if missing:
+            raise SystemExit(
+                f"--ats {ats} requires --field " + ", --field ".join(missing))
+        entry = {"name": name, "ats": ats, **fields}
+        # Generic fields are intentionally verbatim; the post-insert --test
+        # is the authoritative structural/live verification step.
+        return entry, None
     if ats in ("greenhouse", "ashby", "lever"):
         if not args.slug:
             raise SystemExit(f"--ats {ats} requires --slug")
@@ -399,6 +426,8 @@ def main():
     parser.add_argument("--from-job-url", metavar="URL",
                         help="Derive an ATS entry from one concrete job URL")
     parser.add_argument("--ats", help="Skip probing; specify the adapter explicitly")
+    parser.add_argument("--field", action="append", default=[], metavar="KEY=VALUE",
+                        help="With --ats, set any adapter field verbatim; repeatable")
     parser.add_argument("--slug")
     parser.add_argument("--tenant")
     parser.add_argument("--site")
@@ -425,7 +454,7 @@ def main():
         if args.name:
             parser.error("name cannot be combined with --batch")
         single_only = (
-            args.url, args.from_job_url, args.ats, args.slug, args.tenant, args.site,
+            args.url, args.from_job_url, args.ats, bool(args.field), args.slug, args.tenant, args.site,
             args.wd_host != "wd5", args.search, args.max_pages,
             args.base_url, args.domain, args.company_id, args.country, args.query,
             args.account, args.comment,
@@ -449,6 +478,8 @@ def main():
         parser.error("--sync-active requires --batch")
     if not args.name:
         parser.error("name is required unless --batch is used")
+    if args.field and not args.ats:
+        parser.error("--field requires --ats")
 
     with open(CONFIG_FILE) as f:
         config_text = f.read()
