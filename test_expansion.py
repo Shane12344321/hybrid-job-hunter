@@ -53,6 +53,12 @@ class TestCandidateLedger(unittest.TestCase):
             writer.writerow({"name": "Other", "careers_url": "", "status": "candidate"})
         self.assertEqual(probe.load_candidates(csv_path)[0]["name"], "Other")
 
+        txt_path = self.path("names.txt")
+        with open(txt_path, "w") as stream:
+            stream.write("# comment\nAlpha\n\nBeta\n")
+        self.assertEqual([row["name"] for row in probe.load_candidates(txt_path)],
+                         ["Alpha", "Beta"])
+
     def test_duplicate_and_invalid_status_are_rejected(self):
         path = self.path("bad.yaml")
         with open(path, "w") as stream:
@@ -659,6 +665,27 @@ class TestCandidateLedger(unittest.TestCase):
 
 
 class TestReviewedBatch(unittest.TestCase):
+    def test_auto_approve_verified_rows_and_write_review_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = os.path.join(directory, "report.yaml")
+            review = os.path.join(directory, "review.json")
+            with open(report, "w") as stream:
+                yaml.safe_dump({"candidates": [{
+                    "name": "Verified", "status": "probed",
+                    "probe_status": "verified_endpoint",
+                    "suggested_entry": {"name": "Verified", "ats": "ashby", "slug": "verified"},
+                }, {"name": "Needs review", "status": "probed"}]}, stream)
+            with mock.patch.object(add_source, "CONFIG_FILE", os.path.join(directory, "config.yaml")), \
+                    mock.patch.object(add_source, "batch_command",
+                                      return_value=(["python", "ok"], None)) as build:
+                with open(add_source.CONFIG_FILE, "w") as stream:
+                    yaml.safe_dump({"ats_companies": [], "custom_pages": []}, stream)
+                add_source.run_batch(report, auto_approve_verified=True, review_out=review)
+            self.assertTrue(any(call.args[0].get("approved") for call in build.call_args_list))
+            with open(review, encoding="utf-8") as stream:
+                payload = json.load(stream)
+            self.assertTrue(payload["candidates"][0]["auto_approved"])
+
     def test_generic_ats_fields_support_oracle_hcm(self):
         args = argparse.Namespace(
             name="Oracle", ats="oracle_hcm", field=["host=careers.example.com",

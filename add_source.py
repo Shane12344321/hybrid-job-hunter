@@ -307,8 +307,32 @@ def batch_command(candidate, no_seed=False, allow_empty=False):
     return command, None
 
 
+def write_review_report(path, candidates, commands, skipped):
+    """Write a portable review artifact without changing the input ledger."""
+    payload = {
+        "version": 1,
+        "source": os.path.basename(path),
+        "candidates": candidates,
+        "actionable": [
+            {"name": name, "command": command} for name, command in commands
+        ],
+        "skipped": [{"name": name, "reason": reason} for name, reason in skipped],
+    }
+    extension = os.path.splitext(path)[1].lower()
+    if extension == ".json":
+        import json
+        with open(path, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, indent=2)
+            stream.write("\n")
+    elif extension in (".yaml", ".yml"):
+        with open(path, "w", encoding="utf-8") as stream:
+            yaml.safe_dump(payload, stream, sort_keys=False, width=1000)
+    else:
+        raise SystemExit("❌ --review-out must end in .yaml, .yml, or .json")
+
+
 def run_batch(path, apply=False, no_seed=False, approved_names=None,
-              allow_empty=False):
+              allow_empty=False, auto_approve_verified=False, review_out=None):
     """Review or apply explicitly approved candidates from a probe report."""
     try:
         candidates = probe.load_candidates(path)
@@ -336,8 +360,13 @@ def run_batch(path, apply=False, no_seed=False, approved_names=None,
     commands = []
     skipped = []
     for candidate in candidates:
+        if (auto_approve_verified
+                and candidate.get("probe_status") == "verified_endpoint"
+                and isinstance(candidate.get("suggested_entry"), dict)):
+            candidate["approved"] = True
+            candidate["auto_approved"] = True
         if candidate["name"].casefold() in approved_names:
-            candidate = {**candidate, "approved": True}
+            candidate["approved"] = True
         if (candidate.get("approved") is True
                 and candidate["name"].casefold() in active_names):
             skipped.append((candidate["name"], "already tracked"))
@@ -356,6 +385,10 @@ def run_batch(path, apply=False, no_seed=False, approved_names=None,
     for name, command in commands:
         printable = " ".join(f'"{part}"' if " " in part else part for part in command)
         print(f"  {'▶' if apply else 'DRY RUN'} {name}: {printable}")
+
+    if review_out:
+        write_review_report(review_out, candidates, commands, skipped)
+        print(f"Review artifact written to {review_out}")
 
     if not apply:
         print("No files changed. Add `approved: true` after review, then rerun with --apply.")
@@ -420,6 +453,10 @@ def main():
                         help="With --batch, add only rows explicitly marked approved: true")
     parser.add_argument("--approve", action="append", default=[], metavar="NAME",
                         help="Approve one named batch row for this invocation; repeatable")
+    parser.add_argument("--auto-approve-verified", action="store_true",
+                        help="With --batch, approve rows whose probe_status is verified_endpoint")
+    parser.add_argument("--review-out", metavar="PATH",
+                        help="With --batch, write the review/action report as YAML or JSON")
     parser.add_argument("--sync-active", action="store_true",
                         help="With --batch, update YAML statuses from current config and exit")
     parser.add_argument("--url", help="Careers/board URL to probe instead of name-based slug guessing")
@@ -458,6 +495,7 @@ def main():
             args.wd_host != "wd5", args.search, args.max_pages,
             args.base_url, args.domain, args.company_id, args.country, args.query,
             args.account, args.comment,
+            args.auto_approve_verified, args.review_out,
         )
         if any(single_only):
             parser.error("single-source ATS flags cannot be combined with --batch")
@@ -468,12 +506,16 @@ def main():
             return
         run_batch(
             args.batch, apply=args.apply, no_seed=args.no_seed,
-            approved_names=args.approve, allow_empty=args.allow_empty)
+            approved_names=args.approve, allow_empty=args.allow_empty,
+            auto_approve_verified=args.auto_approve_verified,
+            review_out=args.review_out)
         return
     if args.apply:
         parser.error("--apply requires --batch")
     if args.approve:
         parser.error("--approve requires --batch")
+    if args.auto_approve_verified or args.review_out:
+        parser.error("--auto-approve-verified and --review-out require --batch")
     if args.sync_active:
         parser.error("--sync-active requires --batch")
     if not args.name:

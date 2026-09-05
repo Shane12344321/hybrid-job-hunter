@@ -8,8 +8,9 @@ Usage:
     python3 probe.py --batch candidates.yaml --output probe-report.yaml
 
 Read-only by default: never touches config.yaml, state.json, or the input
-candidate ledger. Batch mode performs bounded-concurrency probing and writes
-a review report only when --output is supplied. The explicit --merge-report
+candidate ledger. Batch mode accepts YAML/CSV or one-company-per-line TXT,
+performs bounded-concurrency probing, and writes a review report only when
+--output is supplied. The explicit --merge-report
 operation updates lifecycle/probe fields in a YAML ledger. add_source.py drives this
 programmatically; .agents/skills/add-source covers the cases probing cannot
 handle (JS-only boards and program-monitor pages).
@@ -767,7 +768,11 @@ def _looks_like_url(arg):
 def load_candidates(path):
     """Load a CSV or YAML candidate ledger and validate its portable schema."""
     extension = os.path.splitext(path)[1].lower()
-    if extension == ".csv":
+    if extension == ".txt":
+        with open(path, encoding="utf-8") as stream:
+            rows = [{"name": line.strip()} for line in stream
+                    if line.strip() and not line.lstrip().startswith("#")]
+    elif extension == ".csv":
         with open(path, newline="", encoding="utf-8") as stream:
             rows = list(csv.DictReader(stream))
     elif extension in (".yaml", ".yml"):
