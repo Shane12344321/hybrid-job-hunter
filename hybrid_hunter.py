@@ -220,8 +220,9 @@ class StateManager:
         self.dirty = True
 
     def record_source_run(self, source, source_type, success, match_count,
-                          duration_seconds, request_count, reason=None):
-        """Persist compact source-health evidence for catalog reporting."""
+                          duration_seconds, request_count, reason=None,
+                          raw_count=None):
+        """Persist compact source-health evidence and detect silent collapse."""
         health = self.state.setdefault("_health", {})
         previous = health.get(source) or {}
         zero_streak = previous.get("successful_zero_streak", 0)
@@ -232,6 +233,7 @@ class StateManager:
             "last_run": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "success": bool(success),
             "last_match_count": match_count if success else None,
+            "raw_count": raw_count if success else None,
             "successful_zero_streak": zero_streak,
             "duration_ms": max(0, int(duration_seconds * 1000)),
             "request_count": max(0, int(request_count)),
@@ -244,6 +246,21 @@ class StateManager:
             entry["last_failure"] = entry["last_run"]
             entry["last_success"] = previous.get("last_success")
             entry["reason"] = str(reason)[:200]
+        if success:
+            previous_matches = previous.get("last_match_count")
+            previous_raw = previous.get("raw_count")
+            suspect = None
+            if (isinstance(previous_matches, int) and previous_matches >= 5
+                    and match_count == 0):
+                suspect = (
+                    f"filtered matches collapsed from {previous_matches} to zero")
+            elif (isinstance(previous_raw, int) and previous_raw >= 20
+                  and isinstance(raw_count, int)
+                  and raw_count < previous_raw * 0.2):
+                suspect = (
+                    f"raw postings collapsed from {previous_raw} to {raw_count}")
+            if suspect:
+                entry["suspect"] = suspect
         health[source] = entry
         self.dirty = True
 
@@ -431,9 +448,11 @@ class ATSHunter:
         self.locations = [l.lower() for l in config.get("locations", [])]
         self.exclude_locations = [l.lower() for l in config.get("exclude_locations") or []]
         self.request_count = 0
+        self.last_raw_count = None
 
     def reset_request_count(self):
         self.request_count = 0
+        self.last_raw_count = None
 
     def _get(self, *args, **kwargs):
         return self._request(requests.get, *args, **kwargs)
@@ -540,6 +559,7 @@ class ATSHunter:
         if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
             raise ValueError("Ashby response missing jobs[]")
         jobs = payload["jobs"]
+        self.last_raw_count = len(jobs)
         matches = []
         for job in jobs:
             if not isinstance(job, dict):
@@ -562,6 +582,7 @@ class ATSHunter:
         jobs = res.json()
         if not isinstance(jobs, list):
             raise ValueError("Lever response is not a postings array")
+        self.last_raw_count = len(jobs)
         matches = []
         for job in jobs:
             if not isinstance(job, dict) or not isinstance(job.get("categories"), dict):
@@ -585,6 +606,7 @@ class ATSHunter:
         if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
             raise ValueError("Greenhouse response missing jobs[]")
         jobs = payload["jobs"]
+        self.last_raw_count = len(jobs)
         matches = []
         for job in jobs:
             if not isinstance(job, dict) or not isinstance(job.get("location"), dict):
@@ -607,6 +629,7 @@ class ATSHunter:
         limit = 100
         matches = []
         seen_ids = set()
+        raw_count = 0
         search_terms = queries if queries is not None else [query]
         if not search_terms:
             search_terms = [None]
@@ -644,6 +667,7 @@ class ATSHunter:
                 if expected_total is None:
                     expected_total = total
                 postings = payload["content"]
+                raw_count += len(postings)
                 for posting in postings:
                     if (not isinstance(posting, dict)
                             or not isinstance(posting.get("location"), dict)):
@@ -682,6 +706,7 @@ class ATSHunter:
                 if not postings and offset < expected_total:
                     raise RuntimeError(
                         f"SmartRecruiters pagination stalled at {offset}/{expected_total}")
+        self.last_raw_count = raw_count
         return matches
 
     def hunt_workable(self, account, keywords=None):
@@ -695,6 +720,7 @@ class ATSHunter:
         if (not isinstance(payload, dict) or not isinstance(payload.get("name"), str)
                 or not isinstance(payload.get("jobs"), list)):
             raise ValueError("Workable response missing name/jobs[]")
+        self.last_raw_count = len(payload["jobs"])
         matches = []
         seen_jobs = {}
         for job in payload["jobs"]:
@@ -767,6 +793,7 @@ class ATSHunter:
         seen_job_ids = {}
         limit = 25
         requests_used = 0
+        raw_count = 0
         for search_term in search_terms:
             if requests_used >= max_pages:
                 # An earlier query used up the shared budget, so this one never
@@ -807,6 +834,7 @@ class ATSHunter:
                 total = int(result["TotalJobsCount"])
                 reqs = result["requisitionList"]
                 fetched += len(reqs)
+                raw_count += len(reqs)
                 for job in reqs:
                     if not isinstance(job, dict):
                         raise ValueError("Oracle HCM requisitionList contained a non-object entry")
@@ -833,6 +861,7 @@ class ATSHunter:
                     f"Oracle HCM results truncated for query '{search_term}' ({fetched}/{total})")
         if requests_used > max_pages:
             raise RuntimeError("Oracle HCM exceeded its request budget")
+        self.last_raw_count = raw_count
         return matches
 
     def hunt_workday(self, tenant, site, wd_host="wd5", search="intern",
@@ -931,6 +960,7 @@ class ATSHunter:
                 break
         if total is not None and fetched < total:
             raise RuntimeError(f"Workday results truncated ({fetched}/{total})")
+        self.last_raw_count = fetched
         return matches
 
     def hunt_amazon(self, query="intern", location="India", categories=None,
@@ -966,6 +996,7 @@ class ATSHunter:
             raise ValueError("Amazon response missing hits/jobs[]")
         total = int(payload["hits"])
         jobs = payload["jobs"]
+        self.last_raw_count = len(jobs)
         if len(jobs) < total:
             raise RuntimeError(f"Amazon results truncated ({len(jobs)}/{total})")
         matches = []
@@ -999,6 +1030,7 @@ class ATSHunter:
         jobs = res.json()
         if not isinstance(jobs, list):
             raise ValueError("Atlassian response is not a listings array")
+        self.last_raw_count = len(jobs)
         wanted_categories = {value.casefold() for value in (categories or [])}
         matches = []
         seen_ids = {}
@@ -1115,6 +1147,7 @@ class ATSHunter:
                 break
         if total is not None and start < total:
             raise RuntimeError(f"Eightfold results truncated ({start}/{total})")
+        self.last_raw_count = start
         return matches
 
     def hunt_microsoft(self, query="intern", location="India", keywords=None):
@@ -1134,6 +1167,7 @@ class ATSHunter:
         params = {"q": query, "location": location}
         matches = []
         fetched_pages = 0
+        raw_count = 0
         while next_url and fetched_pages < 4:
             res = self._get(next_url, params=params if fetched_pages == 0 else None,
                                timeout=15, headers=API_HEADERS)
@@ -1144,6 +1178,7 @@ class ATSHunter:
             explicit_zero = bool(re.search(r"\b0\s+jobs?\s+matched\b", page_text))
             if not cards:
                 if explicit_zero:
+                    self.last_raw_count = raw_count
                     return matches
                 raise ValueError("Google Careers page has neither job cards nor an explicit zero-result marker")
             parsed = 0
@@ -1164,6 +1199,7 @@ class ATSHunter:
                 if not id_match:
                     raise ValueError("Google Careers card missing stable result id")
                 parsed += 1
+                raw_count += 1
                 if self.matches_criteria(title, location_text, keywords):
                     matches.append({"id": id_match.group(1), "title": title,
                                     "location": location_text, "url": job_url})
@@ -1175,6 +1211,7 @@ class ATSHunter:
             params = None
         if next_url:
             raise RuntimeError("Google Careers results truncated after 4 pages")
+        self.last_raw_count = raw_count
         return matches
 
     def hunt_intuit(self, query="interns new college grads", location="India", keywords=None):
@@ -1204,6 +1241,7 @@ class ATSHunter:
             if expected_total is None:
                 expected_total = int(results["data-total-results"])
                 if expected_total == 0:
+                    self.last_raw_count = 0
                     return []
             cards = results.select("ul.search-list li a.sr-item[href]")
             if not cards:
@@ -1237,6 +1275,7 @@ class ATSHunter:
         if expected_total is not None and parsed_total < expected_total:
             raise RuntimeError(
                 f"Intuit results truncated ({parsed_total}/{expected_total})")
+        self.last_raw_count = parsed_total
         return matches
 
     def hunt_goldman(self, search="summer analyst", location="India", keywords=None):
@@ -1309,6 +1348,7 @@ class ATSHunter:
                 break
         if total is not None and fetched < total:
             raise RuntimeError(f"Goldman Higher results truncated ({fetched}/{total})")
+        self.last_raw_count = fetched
         return matches
 
     def hunt_deshaw(self, keywords=None):
@@ -1326,6 +1366,7 @@ class ATSHunter:
         if not anchors:
             text = soup.get_text(" ", strip=True).lower()
             if "no internships" in text or "no internship opportunities" in text:
+                self.last_raw_count = 0
                 return []
             raise ValueError("D. E. Shaw internships page missing recognized job cards")
         matches = []
@@ -1348,6 +1389,7 @@ class ATSHunter:
                             "location": location_text, "url": job_url})
         # Cards existed but only false positives such as "Internal ..." is a
         # valid zero after exact word-boundary title filtering.
+        self.last_raw_count = parsed
         return matches
 
 def page_text_failure(text):
@@ -1463,12 +1505,14 @@ def _hunt_ats_entry(comp, config, semaphores):
                 raise ValueError(f"unknown ats type '{ats_type}'")
         return {
             "comp": comp, "matches": matches, "error": None,
+            "raw_count": hunter.last_raw_count,
             "request_count": hunter.request_count,
             "duration": time.monotonic() - started,
         }
     except Exception as exc:
         return {
             "comp": comp, "matches": None, "error": exc,
+            "raw_count": hunter.last_raw_count,
             "request_count": hunter.request_count,
             "duration": time.monotonic() - started,
         }
@@ -2101,7 +2145,15 @@ def send_heartbeat(config, state_manager, notifier):
         for name, entry in failing.items():
             streak = f"{entry['count']}+" if entry.get("alerted") else str(entry["count"])
             heartbeat.append(f"⚠️ {html.escape(name)}: failing ({streak} consecutive runs)")
-    else:
+    suspects = []
+    for name, entry in (state_manager.state.get("_health") or {}).items():
+        if entry.get("suspect"):
+            suspects.append((name, entry["suspect"]))
+        elif entry.get("successful_zero_streak", 0) >= 24:
+            suspects.append((name, f"{entry['successful_zero_streak']} consecutive successful zero-match runs"))
+    for name, reason in suspects:
+        heartbeat.append(f"❓ {html.escape(name)}: {html.escape(reason)}")
+    if not failing and not suspects:
         heartbeat.append("All sources healthy ✅")
     if not notifier.send("\n".join(heartbeat)):
         raise RuntimeError("heartbeat could not be delivered to Telegram")
@@ -2347,19 +2399,26 @@ def main():
                 state_manager.record_failure(name, error)
                 state_manager.record_source_run(
                     name, ats_type, False, None, result["duration"],
-                    result["request_count"], reason=error)
+                    result["request_count"], reason=error,
+                    raw_count=result.get("raw_count"))
             source_failures += 1
             if not test_mode and completed_ats % 25 == 0:
                 state_manager.save_if_dirty()
             continue
 
-        run_report.append((name, f"✅ {len(matches)} match(es)"))
         if not test_mode:
             state_manager.record_source_run(
                 name, ats_type, True, len(matches), result["duration"],
-                result["request_count"])
+                result["request_count"], raw_count=result.get("raw_count"))
             if state_manager.record_success(name):
                 recovered.append(name)
+        suspect = (
+            state_manager.state.get("_health", {}).get(name, {}).get("suspect")
+            if not test_mode else None)
+        run_report.append((
+            name,
+            f"? {'✅' if matches else '—'} {len(matches)} match(es)"
+            if suspect else f"✅ {len(matches)} match(es)"))
 
         if test_mode:
             print(f"  {'✅' if matches else '—'} {name} ({ats_type}): {len(matches)} matches")

@@ -803,6 +803,7 @@ class TestCatalogReport(unittest.TestCase):
                         "last_success": "2099-01-01T00:00:00Z",
                         "duration_ms": 20, "request_count": 1,
                         "successful_zero_streak": 30,
+                        "suspect": "raw postings collapsed from 25 to 2",
                     },
                 },
             }, stream)
@@ -818,6 +819,9 @@ class TestCatalogReport(unittest.TestCase):
         self.assertEqual(report["health"]["failing_sources"], ["Broken"])
         self.assertEqual(report["health"]["pending_alerts"], 1)
         self.assertEqual(report["health"]["suspicious_zero_sources"], ["Healthy"])
+        self.assertEqual(report["health"]["suspect_sources"], [
+            {"name": "Healthy", "reason": "raw postings collapsed from 25 to 2"},
+        ])
 
 
 if __name__ == "__main__":

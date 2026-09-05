@@ -266,17 +266,28 @@ class TestStateAndDelivery(unittest.TestCase):
 
     def test_source_health_tracks_requests_latency_and_zero_streak(self):
         state = hh.StateManager()
-        state.record_source_run("Example", "greenhouse", True, 0, 0.125, 1)
-        state.record_source_run("Example", "greenhouse", True, 0, 0.250, 2)
+        state.record_source_run("Example", "greenhouse", True, 5, 0.125, 1, raw_count=30)
+        state.record_source_run("Example", "greenhouse", True, 0, 0.250, 2, raw_count=5)
         health = state.state["_health"]["Example"]
-        self.assertEqual(health["successful_zero_streak"], 2)
+        self.assertEqual(health["successful_zero_streak"], 1)
         self.assertEqual(health["duration_ms"], 250)
         self.assertEqual(health["request_count"], 2)
+        self.assertIn("suspect", health)
+        state.record_source_run("Example", "greenhouse", True, 1, 0.1, 1, raw_count=5)
+        self.assertNotIn("suspect", state.state["_health"]["Example"])
         state.record_source_run("Example", "greenhouse", False, None, 0.5, 1, "down")
         health = state.state["_health"]["Example"]
         self.assertFalse(health["success"])
-        self.assertEqual(health["successful_zero_streak"], 2)
+        self.assertEqual(health["successful_zero_streak"], 0)
         self.assertEqual(health["reason"], "down")
+
+    def test_raw_posting_collapse_is_suspect_but_not_failure(self):
+        state = hh.StateManager()
+        state.record_source_run("Example", "greenhouse", True, 1, 0.1, 1, raw_count=25)
+        state.record_source_run("Example", "greenhouse", True, 1, 0.1, 1, raw_count=4)
+        health = state.state["_health"]["Example"]
+        self.assertIn("suspect", health)
+        self.assertNotIn("_failures", state.state)
 
     def test_missing_credentials_are_not_delivery(self):
         with mock.patch.dict(os.environ, {"TELEGRAM_TOKEN": "", "TELEGRAM_CHAT_ID": ""}):

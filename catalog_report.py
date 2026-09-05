@@ -71,6 +71,7 @@ def build_report(config_path="config.yaml", candidates_path="candidates.yaml",
     no_health = []
     stale = []
     suspicious_zero = []
+    suspects = []
     durations = []
     requests = 0
     family_health = defaultdict(lambda: {"sources": 0, "healthy": 0, "failing": 0})
@@ -88,6 +89,8 @@ def build_report(config_path="config.yaml", candidates_path="candidates.yaml",
                 stale.append(name)
             if item.get("successful_zero_streak", 0) >= zero_streak:
                 suspicious_zero.append(name)
+            if item.get("suspect"):
+                suspects.append({"name": name, "reason": item["suspect"]})
             durations.append(item.get("duration_ms", 0))
             requests += item.get("request_count", 0)
         if name in failures:
@@ -123,6 +126,7 @@ def build_report(config_path="config.yaml", candidates_path="candidates.yaml",
             "without_runtime_evidence": sorted(no_health),
             "stale_sources": sorted(stale),
             "suspicious_zero_sources": sorted(suspicious_zero),
+            "suspect_sources": suspects,
             "latest_run_request_count": requests,
             "p95_source_duration_ms": p95,
             "by_source_type": dict(sorted(family_health.items())),
@@ -146,6 +150,7 @@ def print_markdown(report):
     print(f"- Sources without runtime evidence: {len(health['without_runtime_evidence'])}")
     print(f"- Stale sources: {len(health['stale_sources'])}")
     print(f"- Suspicious successful-zero streaks: {len(health['suspicious_zero_sources'])}")
+    print(f"- Suspected silent collapses: {len(health['suspect_sources'])}")
     print(f"- Latest-run requests represented: {health['latest_run_request_count']}")
     print(f"- p95 source duration: {health['p95_source_duration_ms']} ms")
     print()
