@@ -546,11 +546,13 @@ class ATSHunter:
         self.locations = [l.lower() for l in config.get("locations", [])]
         self.exclude_locations = [l.lower() for l in config.get("exclude_locations") or []]
         self.request_count = 0
+        self.request_budget = 4
         self.last_raw_count = None
         self.last_raw_ids = set()
 
     def reset_request_count(self):
         self.request_count = 0
+        self.request_budget = 4
         self.last_raw_count = None
         self.last_raw_ids = set()
 
@@ -570,6 +572,9 @@ class ATSHunter:
         """
         last_attempt = HTTP_RETRY_ATTEMPTS - 1
         for attempt in range(HTTP_RETRY_ATTEMPTS):
+            if self.request_budget is not None and self.request_count >= self.request_budget:
+                raise RuntimeError(
+                    f"ATS request budget exhausted ({self.request_budget} attempts)")
             self.request_count += 1
             try:
                 response = method(*args, **kwargs)
@@ -976,6 +981,7 @@ class ATSHunter:
         whose fuzzy server search returns a large country-scoped set."""
         if not isinstance(max_pages, int) or isinstance(max_pages, bool) or not 1 <= max_pages <= 4:
             raise ValueError("Oracle HCM max_pages must be an integer from 1 to 4")
+        self.request_budget = max_pages
         search_terms = queries if queries is not None else [keyword]
         if (not isinstance(search_terms, list) or not search_terms
                 or any(not isinstance(value, str) or not value for value in search_terms)):
@@ -1075,6 +1081,7 @@ class ATSHunter:
         needs more than the default 4 pages to read its result set in full."""
         if not isinstance(max_pages, int) or isinstance(max_pages, bool) or not 1 <= max_pages <= 12:
             raise ValueError("Workday max_pages must be an integer from 1 to 12")
+        self.request_budget = max_pages
         base = f"https://{tenant}.{wd_host}.myworkdayjobs.com"
         url = f"{base}/wday/cxs/{tenant}/{site}/jobs"
         limit = 20
