@@ -116,7 +116,27 @@ class StateManager:
         company = self._ensure(company)
         return job_id not in self._job_sets[company]
 
-    def mark_job(self, company, job_id):
+    @staticmethod
+    def job_signature(title, location):
+        normalize = lambda value: re.sub(
+            r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", str(value or "").casefold())
+        ).strip()
+        return f"{normalize(title)}|{normalize(location)}"
+
+    def is_repost(self, company, title, location, now=None, days=30):
+        company = self._resolve(company)
+        entry = self.state.get(company)
+        if not entry:
+            return False
+        signatures = entry.get("signatures") or {}
+        cutoff = (time.time() if now is None else now) - days * 86400
+        signature = self.job_signature(title, location)
+        try:
+            return float(signatures.get(signature, 0)) >= cutoff
+        except (TypeError, ValueError):
+            return False
+
+    def mark_job(self, company, job_id, title=None, location=None):
         company = self._ensure(company)
         entry = self.state[company]
         if job_id not in self._job_sets[company]:
@@ -126,6 +146,9 @@ class StateManager:
             # First-seen timestamp enables expiry pruning (prune_expired_jobs)
             # without changing the jobs list's shape or existing consumers.
             entry.setdefault("seen", {}).setdefault(str(job_id), int(time.time()))
+            if title is not None or location is not None:
+                entry.setdefault("signatures", {})[
+                    self.job_signature(title, location)] = int(time.time())
 
     def hash_changed(self, company, content_hash):
         company = self._ensure(company)
@@ -449,11 +472,12 @@ def build_digest(new_jobs, page_changes, warnings=None):
                 location = html.escape(_clip(job.get("location") or "", 400))
                 raw_url = str(job.get("url") or "")
                 suffix = f" — {location}" if location else ""
+                bullet = "↻ •" if job.get("repost") else "•"
                 if raw_url and len(raw_url) <= 1800:
                     job_url = html.escape(raw_url, quote=True)
-                    lines.append(f"• <a href='{job_url}'>{title}</a>{suffix}")
+                    lines.append(f"{bullet} <a href='{job_url}'>{title}</a>{suffix}")
                 else:
-                    lines.append(f"• {title}{suffix} (link unavailable)")
+                    lines.append(f"{bullet} {title}{suffix} (link unavailable)")
     for change in page_changes:
         lines.append("")
         raw_url = str(change["url"])
@@ -2561,10 +2585,15 @@ def main():
                 continue
             seen_this_run.add((name, match["id"]))
             if seed_mode:
-                state_manager.mark_job(name, match["id"])
+                state_manager.mark_job(
+                    name, match["id"], match.get("title"), match.get("location"))
                 seeded_jobs += 1
             else:
-                new_jobs.append({"company": name, **match})
+                new_jobs.append({
+                    "company": name, **match,
+                    "repost": state_manager.is_repost(
+                        name, match.get("title"), match.get("location")),
+                })
         if not test_mode and completed_ats % 25 == 0:
             state_manager.save_if_dirty()
 
@@ -2631,10 +2660,15 @@ def main():
                     continue
                 seen_this_run.add((name, match["id"]))
                 if seed_mode:
-                    state_manager.mark_job(name, match["id"])
+                    state_manager.mark_job(
+                        name, match["id"], match.get("title"), match.get("location"))
                     seeded_jobs += 1
                 else:
-                    new_jobs.append({"company": name, **match})
+                    new_jobs.append({
+                        "company": name, **match,
+                        "repost": state_manager.is_repost(
+                            name, match.get("title"), match.get("location")),
+                    })
             if not test_mode:
                 state_manager.save_if_dirty()
             continue
@@ -2702,7 +2736,8 @@ def main():
                 if not notifier.send(chunk):
                     state_manager.queue_alert(chunk)
             for job in new_jobs:
-                state_manager.mark_job(job["company"], job["id"])
+                state_manager.mark_job(
+                    job["company"], job["id"], job.get("title"), job.get("location"))
             for change in page_changes:
                 state_manager.set_hash(change["name"], change["hash"])
             state_manager.record_new_jobs(len(new_jobs))

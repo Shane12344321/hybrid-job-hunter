@@ -217,6 +217,21 @@ class TestStateAndDelivery(unittest.TestCase):
                          ["recent", "listed", "legacy"])
         self.assertGreaterEqual(state.state["Example"]["seen"]["legacy"], now)
 
+    def test_fuzzy_repost_is_tagged_without_suppressing_new_id(self):
+        state = hh.StateManager()
+        now = int(time.time())
+        state.mark_job("Example", "old", "Software Intern!", "Bengaluru, India")
+        self.assertTrue(state.is_repost(
+            "Example", "software intern", "Bengaluru, India", now=now))
+        self.assertFalse(state.is_repost(
+            "Example", "software intern", "Pune, India", now=now))
+        digest = hh.build_digest([{
+            "company": "Example", "id": "new", "title": "Software Intern",
+            "location": "Bengaluru, India", "url": "https://example.test/new",
+            "repost": True,
+        }], [])
+        self.assertTrue(any("↻" in chunk for chunk in digest))
+
     def test_explicit_shard_state_is_isolated(self):
         first = hh.StateManager("state.shard-0-of-2.json")
         first.mark_job("Example", "1")
