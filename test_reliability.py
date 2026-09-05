@@ -200,6 +200,23 @@ class TestStateAndDelivery(unittest.TestCase):
             state.save_if_dirty()
         save.assert_not_called()
 
+    def test_prune_expired_jobs_keeps_current_and_recent_ids(self):
+        path = os.path.join(tmpdir, "prune-state.json")
+        now = int(time.time())
+        with open(path, "w") as stream:
+            json.dump({"Example": {
+                "jobs": ["old", "recent", "listed", "legacy"], "hash": "",
+                "seen": {"old": now - 61 * 86400, "recent": now - 2 * 86400,
+                         "listed": now - 61 * 86400},
+            }}, stream)
+        state = hh.StateManager(path)
+        removed = state.prune_expired_jobs(
+            {"Example": {"recent", "listed", "legacy"}}, days=60)
+        self.assertEqual(removed, [("Example", "old")])
+        self.assertEqual(state.state["Example"]["jobs"],
+                         ["recent", "listed", "legacy"])
+        self.assertGreaterEqual(state.state["Example"]["seen"]["legacy"], now)
+
     def test_explicit_shard_state_is_isolated(self):
         first = hh.StateManager("state.shard-0-of-2.json")
         first.mark_job("Example", "1")

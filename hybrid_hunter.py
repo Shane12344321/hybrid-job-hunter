@@ -45,6 +45,7 @@ class StateManager:
         self.path = state_file or STATE_FILE
         self.state = {}
         self.dirty = False
+        self._job_sets = {}
         if os.path.exists(self.path):
             try:
                 with open(self.path, 'r') as f:
@@ -53,6 +54,10 @@ class StateManager:
                     raise ValueError("top-level state must be a JSON object")
                 self._validate_shape(loaded)
                 self.state = loaded
+                self._job_sets = {
+                    key: set(value["jobs"])
+                    for key, value in loaded.items() if not key.startswith("_")
+                }
             except (json.JSONDecodeError, OSError, ValueError) as e:
                 raise RuntimeError(
                     f"Could not load {self.path}; refusing to discard crawler state: {e}") from e
@@ -102,18 +107,20 @@ class StateManager:
         company = self._resolve(company)
         if company not in self.state:
             self.state[company] = {"jobs": [], "hash": ""}
+            self._job_sets[company] = set()
             self.dirty = True
         return company
 
     def is_new_job(self, company, job_id):
         company = self._ensure(company)
-        return job_id not in self.state[company]["jobs"]
+        return job_id not in self._job_sets[company]
 
     def mark_job(self, company, job_id):
         company = self._ensure(company)
         entry = self.state[company]
-        if job_id not in entry["jobs"]:
+        if job_id not in self._job_sets[company]:
             entry["jobs"].append(job_id)
+            self._job_sets[company].add(job_id)
             self.dirty = True
             # First-seen timestamp enables expiry pruning (prune_expired_jobs)
             # without changing the jobs list's shape or existing consumers.
@@ -206,6 +213,56 @@ class StateManager:
             if not rows:
                 self.state.pop(bucket, None)
         return sorted(set(removed))
+
+    def prune_expired_jobs(self, current_raw_results=None, days=60):
+        """Prune old seen ids that disappeared from the current raw boards.
+
+        ``current_raw_results`` maps source names to the ids observed in this
+        run before filtering. Legacy ids without a timestamp are stamped now
+        on first sight and are never removed by this pass.
+        """
+        if not isinstance(days, (int, float)) or days < 1:
+            raise ValueError("days must be positive")
+        current_raw_results = current_raw_results or {}
+        normalized = {
+            str(name).casefold(): {str(job_id) for job_id in ids}
+            for name, ids in current_raw_results.items()
+        }
+        cutoff = time.time() - days * 86400
+        removed = []
+        now = int(time.time())
+        for source, entry in self.state.items():
+            if source.startswith("_") or not isinstance(entry, dict):
+                continue
+            seen = entry.setdefault("seen", {})
+            current = normalized.get(source.casefold(), set())
+            kept_jobs = []
+            for job_id in entry.get("jobs", []):
+                key = str(job_id)
+                timestamp = seen.get(key)
+                if timestamp is None:
+                    # Legacy state has no age evidence. Stamp it when the id
+                    # is observed, but never infer that it is safe to delete.
+                    if key in current:
+                        seen[key] = now
+                    kept_jobs.append(job_id)
+                    continue
+                try:
+                    old = float(timestamp)
+                except (TypeError, ValueError):
+                    kept_jobs.append(job_id)
+                    continue
+                if old < cutoff and key not in current:
+                    removed.append((source, job_id))
+                    continue
+                kept_jobs.append(job_id)
+            if len(kept_jobs) != len(entry.get("jobs", [])):
+                entry["jobs"] = kept_jobs
+                self._job_sets[source] = set(kept_jobs)
+                self.dirty = True
+            if not seen:
+                entry.pop("seen", None)
+        return removed
 
     def record_new_jobs(self, count):
         """Keep a 7-day rolling log of finds (only written when something
@@ -449,10 +506,12 @@ class ATSHunter:
         self.exclude_locations = [l.lower() for l in config.get("exclude_locations") or []]
         self.request_count = 0
         self.last_raw_count = None
+        self.last_raw_ids = set()
 
     def reset_request_count(self):
         self.request_count = 0
         self.last_raw_count = None
+        self.last_raw_ids = set()
 
     def _get(self, *args, **kwargs):
         return self._request(requests.get, *args, **kwargs)
@@ -560,11 +619,13 @@ class ATSHunter:
             raise ValueError("Ashby response missing jobs[]")
         jobs = payload["jobs"]
         self.last_raw_count = len(jobs)
+        raw_ids = set()
         matches = []
         for job in jobs:
             if not isinstance(job, dict):
                 raise ValueError("Ashby jobs[] contained a non-object entry")
             job_id = str(job.get("id") or "")
+            raw_ids.add(job_id)
             title = job.get("title")
             location = job.get("location")
             job_url = job.get("jobUrl")
@@ -573,6 +634,7 @@ class ATSHunter:
                 raise ValueError("Ashby job missing id/title/location/jobUrl")
             if self.matches_criteria(title, location, keywords):
                 matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+        self.last_raw_ids = raw_ids
         return matches
 
     def hunt_lever(self, slug, keywords=None):
@@ -583,11 +645,13 @@ class ATSHunter:
         if not isinstance(jobs, list):
             raise ValueError("Lever response is not a postings array")
         self.last_raw_count = len(jobs)
+        raw_ids = set()
         matches = []
         for job in jobs:
             if not isinstance(job, dict) or not isinstance(job.get("categories"), dict):
                 raise ValueError("Lever posting missing categories object")
             job_id = str(job.get("id") or "")
+            raw_ids.add(job_id)
             title = job.get("text")
             location = job["categories"].get("location")
             job_url = job.get("hostedUrl")
@@ -596,6 +660,7 @@ class ATSHunter:
                 raise ValueError("Lever posting missing id/text/location/hostedUrl")
             if self.matches_criteria(title, location, keywords):
                 matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+        self.last_raw_ids = raw_ids
         return matches
 
     def hunt_greenhouse(self, slug, keywords=None):
@@ -607,11 +672,13 @@ class ATSHunter:
             raise ValueError("Greenhouse response missing jobs[]")
         jobs = payload["jobs"]
         self.last_raw_count = len(jobs)
+        raw_ids = set()
         matches = []
         for job in jobs:
             if not isinstance(job, dict) or not isinstance(job.get("location"), dict):
                 raise ValueError("Greenhouse job missing location object")
             job_id = str(job.get("id") or "")
+            raw_ids.add(job_id)
             title = job.get("title")
             location = job["location"].get("name")
             job_url = job.get("absolute_url")
@@ -620,6 +687,7 @@ class ATSHunter:
                 raise ValueError("Greenhouse job missing id/title/location/absolute_url")
             if self.matches_criteria(title, location, keywords):
                 matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+        self.last_raw_ids = raw_ids
         return matches
 
     def hunt_smartrecruiters(self, company_id, country=None, query=None,
@@ -707,6 +775,7 @@ class ATSHunter:
                     raise RuntimeError(
                         f"SmartRecruiters pagination stalled at {offset}/{expected_total}")
         self.last_raw_count = raw_count
+        self.last_raw_ids = set(seen_ids)
         return matches
 
     def hunt_workable(self, account, keywords=None):
@@ -769,6 +838,7 @@ class ATSHunter:
                     "id": job_id, "title": title,
                     "location": location_text, "url": job_url,
                 })
+        self.last_raw_ids = set(seen_jobs)
         return matches
 
     def hunt_oracle_hcm(self, site_number, keyword="intern", location_id=None,
@@ -862,6 +932,7 @@ class ATSHunter:
         if requests_used > max_pages:
             raise RuntimeError("Oracle HCM exceeded its request budget")
         self.last_raw_count = raw_count
+        self.last_raw_ids = set(seen_job_ids)
         return matches
 
     def hunt_workday(self, tenant, site, wd_host="wd5", search="intern",
@@ -889,6 +960,7 @@ class ATSHunter:
         fetched = 0
         total = None
         seen_paths = set()
+        raw_ids = set()
         # Cap the pagination loop hard so one source can't run away (plan §3).
         for page in range(max_pages):
             body = {"appliedFacets": {}, "limit": limit, "offset": page * limit, "searchText": search}
@@ -937,6 +1009,10 @@ class ATSHunter:
                 if path in seen_paths:
                     raise RuntimeError("Workday pagination repeated a posting; refusing an incomplete read")
                 seen_paths.add(path)
+                job_id = path.rsplit("_", 1)[-1] if "_" in path else path
+                if not job_id:
+                    raise ValueError("Workday posting has no stable identifier")
+                raw_ids.add(job_id)
                 # Multi-location postings collapse to "N Locations" — that text
                 # can't match a city, so matches_criteria would drop an
                 # India-eligible role. With include_multi_location set, include
@@ -951,9 +1027,6 @@ class ATSHunter:
                     continue
                 # Stable dedup key: trailing requisition id (e.g. JR1988855),
                 # falling back to the full path so IDs never come from position.
-                job_id = path.rsplit("_", 1)[-1] if "_" in path else path
-                if not job_id:
-                    raise ValueError("Workday posting has no stable identifier")
                 job_url = f"{base}/en-US/{site}{path}"
                 matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
             if (page + 1) * limit >= total or not postings:
@@ -961,6 +1034,7 @@ class ATSHunter:
         if total is not None and fetched < total:
             raise RuntimeError(f"Workday results truncated ({fetched}/{total})")
         self.last_raw_count = fetched
+        self.last_raw_ids = raw_ids
         return matches
 
     def hunt_amazon(self, query="intern", location="India", categories=None,
@@ -997,6 +1071,7 @@ class ATSHunter:
         total = int(payload["hits"])
         jobs = payload["jobs"]
         self.last_raw_count = len(jobs)
+        raw_ids = set()
         if len(jobs) < total:
             raise RuntimeError(f"Amazon results truncated ({len(jobs)}/{total})")
         matches = []
@@ -1004,6 +1079,7 @@ class ATSHunter:
             if not isinstance(job, dict):
                 raise ValueError("Amazon jobs[] contained a non-object entry")
             job_id = str(job.get("id_icims") or job.get("id") or "")
+            raw_ids.add(job_id)
             title = job.get("title")
             location_text = job.get("normalized_location") or job.get("location")
             job_path = job.get("job_path")
@@ -1014,6 +1090,7 @@ class ATSHunter:
             if self.matches_criteria(title, location_text, keywords):
                 job_url = f"https://www.amazon.jobs{job_path}"
                 matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
+        self.last_raw_ids = raw_ids
         return matches
 
     def hunt_atlassian(self, location="India", categories=None, keywords=None):
@@ -1078,6 +1155,7 @@ class ATSHunter:
             if not excluded_title and location_match and (in_category or title_match):
                 matches.append({"id": job_id, "title": title, "location": location_text,
                                 "url": job_url})
+        self.last_raw_ids = set(seen_ids)
         return matches
 
     def hunt_eightfold(self, base_url, domain, query="intern", location="India",
@@ -1148,6 +1226,7 @@ class ATSHunter:
         if total is not None and start < total:
             raise RuntimeError(f"Eightfold results truncated ({start}/{total})")
         self.last_raw_count = start
+        self.last_raw_ids = set(seen_ids)
         return matches
 
     def hunt_microsoft(self, query="intern", location="India", keywords=None):
@@ -1168,6 +1247,7 @@ class ATSHunter:
         matches = []
         fetched_pages = 0
         raw_count = 0
+        raw_ids = set()
         while next_url and fetched_pages < 4:
             res = self._get(next_url, params=params if fetched_pages == 0 else None,
                                timeout=15, headers=API_HEADERS)
@@ -1200,6 +1280,7 @@ class ATSHunter:
                     raise ValueError("Google Careers card missing stable result id")
                 parsed += 1
                 raw_count += 1
+                raw_ids.add(id_match.group(1))
                 if self.matches_criteria(title, location_text, keywords):
                     matches.append({"id": id_match.group(1), "title": title,
                                     "location": location_text, "url": job_url})
@@ -1212,6 +1293,7 @@ class ATSHunter:
         if next_url:
             raise RuntimeError("Google Careers results truncated after 4 pages")
         self.last_raw_count = raw_count
+        self.last_raw_ids = raw_ids
         return matches
 
     def hunt_intuit(self, query="interns new college grads", location="India", keywords=None):
@@ -1276,6 +1358,7 @@ class ATSHunter:
             raise RuntimeError(
                 f"Intuit results truncated ({parsed_total}/{expected_total})")
         self.last_raw_count = parsed_total
+        self.last_raw_ids = set(seen_job_ids)
         return matches
 
     def hunt_goldman(self, search="summer analyst", location="India", keywords=None):
@@ -1349,6 +1432,7 @@ class ATSHunter:
         if total is not None and fetched < total:
             raise RuntimeError(f"Goldman Higher results truncated ({fetched}/{total})")
         self.last_raw_count = fetched
+        self.last_raw_ids = set(seen_role_ids)
         return matches
 
     def hunt_deshaw(self, keywords=None):
@@ -1371,6 +1455,7 @@ class ATSHunter:
             raise ValueError("D. E. Shaw internships page missing recognized job cards")
         matches = []
         parsed = 0
+        raw_ids = set()
         for anchor in anchors:
             raw = anchor.get_text(" ", strip=True)
             title = re.sub(r"^icon\s*", "", raw, flags=re.IGNORECASE).split(":", 1)[0].strip()
@@ -1381,6 +1466,7 @@ class ATSHunter:
             if not id_match:
                 raise ValueError("D. E. Shaw internship card missing stable id")
             parsed += 1
+            raw_ids.add(id_match.group(1))
             if not self.title_matches(title, keywords):
                 continue
             location_match = re.search(r"\(([^)]+)\)", title)
@@ -1390,6 +1476,7 @@ class ATSHunter:
         # Cards existed but only false positives such as "Internal ..." is a
         # valid zero after exact word-boundary title filtering.
         self.last_raw_count = parsed
+        self.last_raw_ids = raw_ids
         return matches
 
 def page_text_failure(text):
@@ -1506,6 +1593,7 @@ def _hunt_ats_entry(comp, config, semaphores):
         return {
             "comp": comp, "matches": matches, "error": None,
             "raw_count": hunter.last_raw_count,
+            "raw_ids": set(hunter.last_raw_ids),
             "request_count": hunter.request_count,
             "duration": time.monotonic() - started,
         }
@@ -1513,6 +1601,7 @@ def _hunt_ats_entry(comp, config, semaphores):
         return {
             "comp": comp, "matches": None, "error": exc,
             "raw_count": hunter.last_raw_count,
+            "raw_ids": set(hunter.last_raw_ids),
             "request_count": hunter.request_count,
             "duration": time.monotonic() - started,
         }
@@ -2323,6 +2412,7 @@ def main():
     run_report = []     # (source, status) per source, for the Actions summary
     recovered = []      # sources that came back after an alerted failure streak
     seen_this_run = set()
+    raw_results = {}
     seeded_jobs = 0
     seeded_pages = 0
     source_failures = 0
@@ -2406,6 +2496,7 @@ def main():
                 state_manager.save_if_dirty()
             continue
 
+        raw_results[name] = result.get("raw_ids", set())
         if not test_mode:
             state_manager.record_source_run(
                 name, ats_type, True, len(matches), result["duration"],
@@ -2491,6 +2582,7 @@ def main():
 
         if "jobs" in result:
             matches = result["jobs"]
+            raw_results[name] = {match["id"] for match in matches}
             run_report.append((name, f"✅ {len(matches)} match(es)"))
             if test_mode:
                 print(f"  {'✅' if matches else '—'} {name} (browser jobs): {len(matches)} matches")
@@ -2585,6 +2677,10 @@ def main():
              + list(config.get("custom_pages") or [])])
         if pruned:
             print(f"🧹 Pruned state for removed source(s): {', '.join(pruned)}")
+        if not seed_mode:
+            expired = state_manager.prune_expired_jobs(raw_results)
+            if expired:
+                print(f"🧹 Pruned {len(expired)} expired job id(s)")
         state_manager.save_if_dirty()
     write_step_summary(run_report, new_jobs, state_manager)
 
