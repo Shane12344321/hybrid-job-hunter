@@ -130,9 +130,10 @@ def parse_job_url(url):
     if host == "apply.workable.com" and len(segs) >= 3 \
             and segs[1].casefold() == "j":
         return {"ats": "workable", "account": segs[0]}
-    if host in {"amazon.jobs", "www.amazon.jobs"} and len(segs) >= 3 \
-            and segs[0].casefold() == "en" and segs[1].casefold() == "jobs":
-        return {"ats": "amazon"}
+    if host in {"amazon.jobs", "www.amazon.jobs"}:
+        if any(segment.casefold() == "jobs" and index + 1 < len(segs)
+               for index, segment in enumerate(segs)):
+            return {"ats": "amazon"}
     return None
 
 

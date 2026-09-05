@@ -155,6 +155,7 @@ class TestCandidateLedger(unittest.TestCase):
             "https://apply.workable.com/acme/j/ABC123/title":
                 {"ats": "workable", "account": "acme"},
             "https://www.amazon.jobs/en/jobs/123/title": {"ats": "amazon"},
+            "https://www.amazon.jobs/en-gb/jobs/123/title": {"ats": "amazon"},
         }
         for url, expected in cases.items():
             with self.subTest(url=url):
