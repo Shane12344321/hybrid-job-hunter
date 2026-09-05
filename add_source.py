@@ -178,7 +178,7 @@ def resolve_entry(args):
                 entry["max_pages"] = args.max_pages
         return entry, info
     print(f"Probing slug candidates: {', '.join(probe.slug_candidates(args.name))}")
-    hits = probe.probe_name(args.name)
+    hits, slug_errors = probe.probe_name_detailed(args.name)
     if not hits:
         # Slug probing only covers three ATSes.  A single-name onboarding
         # attempt should still discover Workday/Workable/SmartRecruiters by

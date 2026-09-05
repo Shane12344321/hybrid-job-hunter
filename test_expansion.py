@@ -128,7 +128,7 @@ class TestCandidateLedger(unittest.TestCase):
     def test_single_source_onboarding_uses_derived_domain_after_slug_miss(self):
         entry = {"name": "Example", "ats": "workday", "tenant": "example",
                  "wd_host": "wd1", "site": "External", "search": "internship"}
-        with mock.patch.object(add_source.probe, "probe_name", return_value=[]), \
+        with mock.patch.object(add_source.probe, "probe_name_detailed", return_value=([], [])), \
                 mock.patch.object(
                     add_source.probe, "probe_derived_domains",
                     return_value=(entry, 4, "example.com",
