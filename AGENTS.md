@@ -7,13 +7,13 @@ verifiable changes.
 ## What this is
 
 A job-hunting crawler for internships/new-grad roles (India-focused). One
-script, `hybrid_hunter.py` (~1,300 lines), hunts two kinds of sources defined
+script, `hybrid_hunter.py` (~2,800 lines), hunts two kinds of sources defined
 in `config.yaml`:
 
 1. **ATS adapters** (`ats_companies`) — direct HTTP against structured
    APIs/HTML: Ashby, Greenhouse, Lever, Workday, Amazon, Eightfold
    (Microsoft/Qualcomm), Oracle HCM, Google, Intuit, Goldman Higher, D. E.
-   Shaw. Fast, job-level dedup.
+   Shaw, JSON-LD `JobPosting`. Fast, job-level dedup.
 2. **Custom pages** (`custom_pages`) — Playwright-rendered pages, either
    parsed into individual jobs (`job_selector`) or hashed for change
    detection (program monitors / landing pages).
@@ -31,11 +31,10 @@ IDs, page hashes, failure counts, undelivered digests) persists in
 | `state.json` | Runtime state — **machine-managed, never hand-edit** (see below) |
 | `test_adapters.py`, `test_priority_sources.py`, `test_ats.py`, `test_reliability.py`, `test_expansion.py` | Offline unittest suites |
 | `testing_support.py` | `block_network()` / `restore_network()` — every suite arms these in `setUpModule` |
-| `diagnose.py` | Shows what Playwright actually renders on a custom page (`python3 diagnose.py "Name" [--screenshots]`) |
-| `probe.py` | Read-only ATS detection: slug probing (Greenhouse/Ashby/Lever) + URL recognition (Workday/Eightfold/amazon.jobs) |
+| `diagnose.py` | Shows what Playwright actually renders on a custom page (`python3 diagnose.py "Name" [--screenshots] [--suggest-selectors]`) |
+| `probe.py` | Read-only ATS detection: slug/domain probing + URL recognition (Workday/Eightfold/JSON-LD/amazon.jobs) |
 | `add_source.py` | One-command add: probe → append to config.yaml → verify `--test` → baseline `--seed`, with rollback on failure |
 | `.claude/skills/add-source/` | Decision tree for sources the probe can't handle (JS-only boards, program monitors) |
-| `append_ats.py`, `append_custom.py`, `ats_results.txt` | Legacy one-off helpers, superseded by `probe.py`/`add_source.py` (note: they rewrite config.yaml via yaml.dump, destroying comments — don't reuse) |
 | `.github/workflows/hunt.yml` | Hourly `--ats-only` + 4-hourly full run; commits `state.json` |
 | `.github/workflows/heartbeat.yml` | Daily `--heartbeat` status report (read-only, no browser) |
 | `ADAPTERS_PLAN.md` | Design doc for the Phase 5 enterprise adapters |
@@ -60,7 +59,10 @@ python3 hybrid_hunter.py --test --company "Exact Source Name"
 python3 hybrid_hunter.py --validate
 
 # Other flags: --seed (baseline new sources without alerting), --ats-only,
-# --pages-only, --heartbeat. --company is repeatable and matches aliases;
+# --pages-only, --heartbeat, --workers. `add_source.py` also supports
+# `--from-job-url`, generic `--ats TYPE --field key=value`, and reviewed batch
+# `--auto-approve-verified --review-out`. `diagnose.py` supports
+# `--suggest-selectors`. --company is repeatable and matches aliases;
 # fallback/supplement monitors ride along with their parent automatically.
 ```
 
