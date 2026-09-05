@@ -106,6 +106,14 @@ def build_explicit_entry(args):
 
 def resolve_entry(args):
     """Returns (entry, live_count_or_None)."""
+    if getattr(args, "from_job_url", None):
+        parsed = probe.parse_job_url(args.from_job_url)
+        if not parsed:
+            raise SystemExit("❌ Could not recognize a supported ATS job URL.")
+        parsed["name"] = args.name
+        # A concrete posting is only an identifier hint.  Return an unknown
+        # count so the normal post-insert --test remains the source of truth.
+        return parsed, None
     if args.ats:
         return build_explicit_entry(args)
     if args.url:
@@ -388,6 +396,8 @@ def main():
     parser.add_argument("--sync-active", action="store_true",
                         help="With --batch, update YAML statuses from current config and exit")
     parser.add_argument("--url", help="Careers/board URL to probe instead of name-based slug guessing")
+    parser.add_argument("--from-job-url", metavar="URL",
+                        help="Derive an ATS entry from one concrete job URL")
     parser.add_argument("--ats", help="Skip probing; specify the adapter explicitly")
     parser.add_argument("--slug")
     parser.add_argument("--tenant")
@@ -415,7 +425,7 @@ def main():
         if args.name:
             parser.error("name cannot be combined with --batch")
         single_only = (
-            args.url, args.ats, args.slug, args.tenant, args.site,
+            args.url, args.from_job_url, args.ats, args.slug, args.tenant, args.site,
             args.wd_host != "wd5", args.search, args.max_pages,
             args.base_url, args.domain, args.company_id, args.country, args.query,
             args.account, args.comment,
@@ -448,6 +458,8 @@ def main():
     if args.name.casefold() in taken:
         raise SystemExit(f"❌ '{args.name}' is already tracked in {CONFIG_FILE}.")
 
+    if args.url and args.from_job_url:
+        parser.error("--url and --from-job-url are mutually exclusive")
     entry, count = resolve_entry(args)
     if count == 0 and not args.allow_empty:
         raise SystemExit(

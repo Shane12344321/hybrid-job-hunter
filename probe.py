@@ -85,6 +85,56 @@ def slug_candidates(name):
 DOMAIN_TLDS = (".com", ".ai", ".io", ".co")
 
 
+def parse_job_url(url):
+    """Parse a concrete job URL into a config entry without network access.
+
+    This intentionally only extracts stable account/tenant identifiers.  The
+    caller still performs the normal live ``--test`` verification before the
+    entry is persisted.
+    """
+    if not isinstance(url, str) or not url.strip():
+        return None
+    raw = url.strip()
+    if "://" not in raw:
+        raw = "https://" + raw
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return None
+    host = parsed.hostname.casefold()
+    segs = [s for s in parsed.path.split("/") if s]
+    if host in GREENHOUSE_HOSTS and len(segs) >= 2 and segs[1].casefold() == "jobs":
+        return {"ats": "greenhouse", "slug": segs[0]}
+    if host in ASHBY_HOSTS and len(segs) >= 2:
+        return {"ats": "ashby", "slug": segs[0]}
+    if host in LEVER_HOSTS and len(segs) >= 2:
+        return {"ats": "lever", "slug": segs[0]}
+    wd = re.match(r"^([\w-]+)\.(wd\d+)\.myworkdayjobs\.com$", host)
+    if wd:
+        try:
+            job_index = next(i for i, segment in enumerate(segs)
+                             if segment.casefold() == "job")
+        except StopIteration:
+            return None
+        site_segs = segs[:job_index]
+        if site_segs and re.match(r"^[a-z]{2}-[A-Z]{2}$", site_segs[0]):
+            site_segs = site_segs[1:]
+        if not site_segs:
+            return None
+        return {"ats": "workday", "tenant": wd.group(1),
+                "wd_host": wd.group(2), "site": site_segs[0],
+                "search": WORKDAY_SEARCH}
+    if host in {"jobs.smartrecruiters.com", "careers.smartrecruiters.com"} \
+            and len(segs) >= 2:
+        return {"ats": "smartrecruiters", "company_id": segs[0]}
+    if host == "apply.workable.com" and len(segs) >= 3 \
+            and segs[1].casefold() == "j":
+        return {"ats": "workable", "account": segs[0]}
+    if host in {"amazon.jobs", "www.amazon.jobs"} and len(segs) >= 3 \
+            and segs[0].casefold() == "en" and segs[1].casefold() == "jobs":
+        return {"ats": "amazon"}
+    return None
+
+
 def domain_candidates(name, limit=6):
     """Plausible company domains derived from a name, most likely first.
 

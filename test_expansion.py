@@ -132,6 +132,28 @@ class TestCandidateLedger(unittest.TestCase):
         self.assertEqual(resolved, entry)
         self.assertEqual(count, 4)
 
+    def test_parse_job_url_extracts_supported_ats_identifiers(self):
+        cases = {
+            "https://job-boards.eu.greenhouse.io/acme/jobs/123/title":
+                {"ats": "greenhouse", "slug": "acme"},
+            "https://jobs.ashbyhq.com/acme/123e4567-e89b-12d3-a456-426614174000":
+                {"ats": "ashby", "slug": "acme"},
+            "https://jobs.eu.lever.co/acme/1234/title":
+                {"ats": "lever", "slug": "acme"},
+            "https://acme.wd5.myworkdayjobs.com/en-US/External/job/abc/title":
+                {"ats": "workday", "tenant": "acme", "wd_host": "wd5",
+                 "site": "External", "search": "internship"},
+            "https://jobs.smartrecruiters.com/Acme/7440000123-title":
+                {"ats": "smartrecruiters", "company_id": "Acme"},
+            "https://apply.workable.com/acme/j/ABC123/title":
+                {"ats": "workable", "account": "acme"},
+            "https://www.amazon.jobs/en/jobs/123/title": {"ats": "amazon"},
+        }
+        for url, expected in cases.items():
+            with self.subTest(url=url):
+                self.assertEqual(probe.parse_job_url(url), expected)
+        self.assertIsNone(probe.parse_job_url("https://example.test/jobs/123"))
+
     def test_unresolvable_derived_domains_stay_not_found(self):
         # A guessed domain that does not resolve is an expected miss, not an
         # unreliable probe — it must never be upgraded to "failed", which would
