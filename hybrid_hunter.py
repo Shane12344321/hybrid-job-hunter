@@ -733,6 +733,13 @@ class ATSHunter:
 
     def hunt_jsonld(self, url, allow_empty_jsonld=False, keywords=None):
         """Read JobPosting objects embedded as JSON-LD on a public page."""
+        if isinstance(url, dict):
+            entry = url
+            url = entry.get("url")
+            allow_empty_jsonld = entry.get("allow_empty_jsonld", allow_empty_jsonld)
+            keywords = entry.get("keywords", keywords)
+        if not isinstance(url, str) or not url.strip():
+            raise ValueError("JSON-LD adapter requires a non-empty url")
         res = self._get(url, timeout=20, headers={
             **API_HEADERS, "Accept": "text/html,application/xhtml+xml"})
         res.raise_for_status()
