@@ -22,6 +22,7 @@ TELEGRAM_MAX_LEN = 4096
 # urllib3/brotlicffi streaming bug when a brotli package is installed.
 API_HEADERS = {"Accept-Encoding": "gzip, deflate", "User-Agent": "Mozilla/5.0"}
 FAILURE_ALERT_THRESHOLD = 3   # consecutive failed runs before a ⚠️ alert
+FAILING_SOURCE_RETRY_SECONDS = 6 * 60 * 60
 MIN_PAGE_TEXT_CHARS = 200     # below this, a custom page is treated as blocked/broken
 HTTP_RETRY_ATTEMPTS = 3       # initial request plus two retries
 HTTP_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -167,7 +168,23 @@ class StateManager:
             entry["count"] += 1
             entry["reason"] = str(reason)[:200]
             self.dirty = True
+        entry["last_failure"] = time.time()
+        self.dirty = True
         return entry
+
+    def source_in_backoff(self, source, now=None):
+        """Whether an alerted source should wait before another probe."""
+        entry = self.state.get("_failures", {}).get(source)
+        if not entry or not entry.get("alerted"):
+            return False
+        last_failure = entry.get("last_failure")
+        if last_failure is None:
+            return False
+        try:
+            return (time.time() if now is None else now) - float(last_failure) \
+                < FAILING_SOURCE_RETRY_SECONDS
+        except (TypeError, ValueError):
+            return False
 
     def record_success(self, source):
         """Clear a source's failure streak. Returns True if it had been
@@ -2434,12 +2451,30 @@ def main():
         entry for entry in ats_companies
         if source_in_shard(entry, shard_index, shard_count, alias_map)
     ]
+    backoff_ats = []
+    if not test_mode and not company_filters:
+        eligible_ats = []
+        for entry in ats_companies:
+            if state_manager.source_in_backoff(entry["name"]):
+                backoff_ats.append(entry)
+            else:
+                eligible_ats.append(entry)
+        ats_companies = eligible_ats
     custom_pages = (config.get("custom_pages") or []) if hunt_pages else []
     custom_pages = [entry for entry in custom_pages if source_selected(entry, company_filters)]
     custom_pages = [
         entry for entry in custom_pages
         if source_in_shard(entry, shard_index, shard_count, alias_map)
     ]
+    backoff_pages = []
+    if not test_mode and not company_filters:
+        eligible_pages = []
+        for entry in custom_pages:
+            if state_manager.source_in_backoff(entry["name"]):
+                backoff_pages.append(entry)
+            else:
+                eligible_pages.append(entry)
+        custom_pages = eligible_pages
     if company_filters and not ats_companies and not custom_pages:
         raise SystemExit("no selected sources are enabled by the requested --ats-only/--pages-only mode")
     if hunt_ats:
@@ -2643,6 +2678,11 @@ def main():
         state_manager.save_if_dirty()
 
     custom_hunter.close()
+
+    for entry in backoff_ats + backoff_pages:
+        name = entry["name"]
+        print(f"  ⏸ {name}: skipped (backoff)")
+        run_report.append((name, "⏸ skipped (backoff)"))
 
     # 3. Deliver digest, THEN mark state. Undelivered chunks are queued in
     #    state.json and retried next run, so an alert is never silently lost.

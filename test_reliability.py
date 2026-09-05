@@ -306,6 +306,17 @@ class TestStateAndDelivery(unittest.TestCase):
         self.assertIn("suspect", health)
         self.assertNotIn("_failures", state.state)
 
+    def test_alerted_source_backoff_expires_after_six_hours(self):
+        state = hh.StateManager()
+        state.state["_failures"] = {
+            "Example": {"count": 3, "alerted": True,
+                         "last_failure": 1_000_000},
+        }
+        self.assertTrue(state.source_in_backoff("Example", now=1_000_001))
+        self.assertFalse(state.source_in_backoff(
+            "Example", now=1_000_000 + hh.FAILING_SOURCE_RETRY_SECONDS))
+        self.assertFalse(state.source_in_backoff("Unknown", now=1_000_001))
+
     def test_missing_credentials_are_not_delivery(self):
         with mock.patch.dict(os.environ, {"TELEGRAM_TOKEN": "", "TELEGRAM_CHAT_ID": ""}):
             notifier = hh.Notifier({"telegram": {
