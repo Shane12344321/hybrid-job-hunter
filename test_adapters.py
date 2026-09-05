@@ -194,6 +194,10 @@ class TestJSONLD(unittest.TestCase):
                 self.hunter.hunt_jsonld("https://example.test/job")
             self.assertEqual(self.hunter.hunt_jsonld(
                 "https://example.test/job", allow_empty_jsonld=True), [])
+        with mock.patch.object(hh.requests, "get", return_value=self.response(
+                '<script type="application/ld+json">{"@type":"Person"}</script>')):
+            with self.assertRaisesRegex(ValueError, "no JobPosting"):
+                self.hunter.hunt_jsonld("https://example.test/job")
 
 
 class TestWorkable(unittest.TestCase):

@@ -50,7 +50,7 @@ class TestHTTPRetry(unittest.TestCase):
             result = self.hunter._get("https://example.test")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(self.hunter.request_count, 2)
-        pause.assert_called_once_with(2)
+        pause.assert_called_once_with(1)
 
     def test_gives_up_after_three_attempts(self):
         with mock.patch.object(hh.requests, "get", side_effect=[
@@ -59,7 +59,7 @@ class TestHTTPRetry(unittest.TestCase):
             with self.assertRaises(hh.requests.HTTPError):
                 self.hunter._get("https://example.test")
         self.assertEqual(self.hunter.request_count, 3)
-        self.assertEqual([call.args[0] for call in pause.call_args_list], [2, 4])
+        self.assertEqual([call.args[0] for call in pause.call_args_list], [1, 2])
 
     def test_does_not_retry_non_transient_http_error(self):
         response = self.response(404)

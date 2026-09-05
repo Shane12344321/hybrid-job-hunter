@@ -576,7 +576,7 @@ class ATSHunter:
             except (requests.ConnectionError, requests.Timeout):
                 if attempt >= last_attempt:
                     raise
-                sleep(min(2 ** (attempt + 1), 8))
+                sleep(min(2 ** attempt, 8))
                 continue
 
             status = getattr(response, "status_code", None)
@@ -594,7 +594,7 @@ class ATSHunter:
                 if delay < 0:
                     raise ValueError
             except (TypeError, ValueError):
-                delay = min(2 ** (attempt + 1), 8)
+                delay = min(2 ** attempt, 8)
             sleep(delay)
         raise AssertionError("unreachable retry loop")
 
@@ -790,6 +790,8 @@ class ATSHunter:
                     or not location_text):
                 continue
             postings.append((str(identifier), title, location_text, job_url))
+        if not postings and not allow_empty_jsonld:
+            raise ValueError("JSON-LD page contains no JobPosting objects")
         self.last_raw_count = len(postings)
         raw_ids = set()
         matches = []
