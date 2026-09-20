@@ -65,6 +65,7 @@ jobs:
         python test_priority_sources.py
         python test_reliability.py
         python test_expansion.py
+        python test_relevance.py
 
     - name: Cache Playwright browser
       if: env.FULL_RUN == 'true'

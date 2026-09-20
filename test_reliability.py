@@ -1,5 +1,6 @@
 """Offline reliability tests for state, delivery, CLI, and custom pages."""
 import json
+import io
 import os
 import sys
 import tempfile
@@ -306,6 +307,8 @@ class TestStateAndDelivery(unittest.TestCase):
         self.assertEqual(health["request_count"], 2)
         self.assertIn("suspect", health)
         state.record_source_run("Example", "greenhouse", True, 1, 0.1, 1, raw_count=5)
+        self.assertIn("raw postings", state.state["_health"]["Example"]["suspect"])
+        state.record_source_run("Example", "greenhouse", True, 1, 0.1, 1, raw_count=30)
         self.assertNotIn("suspect", state.state["_health"]["Example"])
         state.record_source_run("Example", "greenhouse", False, None, 0.5, 1, "down")
         health = state.state["_health"]["Example"]
@@ -355,6 +358,178 @@ class TestStateAndDelivery(unittest.TestCase):
         chunks = hh.build_digest(jobs, [])
         self.assertTrue(chunks)
         self.assertTrue(all(0 < len(chunk) <= hh.TELEGRAM_MAX_LEN - 100 for chunk in chunks))
+
+    def test_digest_chunks_use_telegram_utf16_limit_and_keep_normal_html(self):
+        # Telegram counts UTF-16 code units, so code-point length alone is not
+        # sufficient for emoji-heavy heartbeat warnings.
+        warning = "<b>" + ("🚀" * 5000) + "</b>"
+        chunks = hh.build_digest([], [], warnings=[warning])
+        self.assertTrue(chunks)
+        self.assertTrue(all(
+            0 < hh._telegram_length(chunk) <= hh.TELEGRAM_MAX_LEN - 100
+            for chunk in chunks))
+        self.assertIn("🚀", "".join(chunks))
+        self.assertNotIn("<b>", "".join(chunks))
+
+        entity_warning = "<b>" + ("&amp;🚀" * 1300) + "</b>"
+        entity_chunks = hh.build_digest([], [], warnings=[entity_warning])
+        self.assertEqual(
+            "".join(hh.html.unescape(chunk) for chunk in entity_chunks),
+            "&🚀" * 1300)
+        for chunk in entity_chunks:
+            self.assertNotRegex(chunk, r"&(?!amp;|lt;|gt;|quot;|#x27;)")
+
+        jobs = [{
+            "company": "Example", "id": "1", "title": "<R&D intern>",
+            "location": "India", "url": "https://example.test/job/1",
+        }]
+        digest = "\n".join(hh.build_digest(jobs, []))
+        self.assertIn("<a href='https://example.test/job/1'>", digest)
+        self.assertIn("&lt;R&amp;D intern&gt;", digest)
+
+
+class TestRuntimeRegressions(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.state = hh.StateManager(os.path.join(self.directory.name, "state.json"))
+
+    def tearDown(self):
+        self.directory.cleanup()
+
+    def test_pruning_distinguishes_unobserved_from_empty(self):
+        for name in ("Skipped", "Empty", "Listed"):
+            self.state.mark_job(name, "old")
+            self.state.state[name]["seen"]["old"] = time.time() - 61 * 86400
+        self.assertEqual(self.state.prune_expired_jobs({}), [])
+        removed = self.state.prune_expired_jobs({"empty": set(), "Listed": {"old"}})
+        self.assertEqual(removed, [("Empty", "old")])
+        self.assertFalse(self.state.is_new_job("Skipped", "old"))
+        self.assertFalse(self.state.is_new_job("Listed", "old"))
+
+    def test_legacy_timestamp_is_checkpointed_without_other_changes(self):
+        self.state.mark_job("Legacy", "id")
+        self.state.state["Legacy"].pop("seen")
+        self.state.save()
+        self.state.prune_expired_jobs({"Legacy": {"id"}})
+        self.state.save_if_dirty()
+        self.assertIn("id", hh.StateManager(self.state.path).state["Legacy"]["seen"])
+
+    def test_collapses_persist_through_repeats_failure_and_reload(self):
+        for kind, initial, degraded, recovered in (
+                ("raw", (1, 100), (1, 10), (1, 20)),
+                ("matches", (10, 100), (0, 100), (1, 100))):
+            with self.subTest(kind=kind):
+                def record(counts, success=True):
+                    self.state.record_source_run(
+                        kind, "ashby", success, counts[0], .1, 1,
+                        raw_count=counts[1], reason="offline" if not success else None)
+                record(initial)
+                record(degraded)
+                record(degraded)
+                record((None, None), False)
+                self.state.save()
+                self.state = hh.StateManager(self.state.path)
+                record(degraded)
+                health = self.state.state["_health"][kind]
+                self.assertEqual(health["suspect_kind"], kind)
+                self.assertEqual(health["healthy_raw_baseline"], 100)
+                record(recovered)
+                self.assertNotIn("suspect", self.state.state["_health"][kind])
+
+    def heartbeat(self, config):
+        notifier = mock.Mock()
+        notifier.send.return_value = True
+        before = json.dumps(self.state.state, sort_keys=True)
+        hh.send_heartbeat(config, self.state, notifier)
+        self.assertEqual(json.dumps(self.state.state, sort_keys=True), before)
+        return [call.args[0] for call in notifier.send.call_args_list]
+
+    def test_heartbeat_requires_fresh_success_for_every_configured_source(self):
+        config = {"ats_companies": [{"name": "ATS", "ats": "ashby"}],
+                  "custom_pages": [{"name": "Page"}]}
+        message = "\n".join(self.heartbeat(config))
+        self.assertIn("no successful check", message)
+        self.assertNotIn("All sources healthy", message)
+        for name, family in (("ATS", "ashby"), ("Page", "custom_page")):
+            self.state.record_source_run(name, family, True, 1, 0, 1)
+        self.assertIn("All sources healthy", "\n".join(self.heartbeat(config)))
+        now = time.time()
+        def stamp(hours):
+            return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now-hours*3600))
+        self.state.state["_health"]["ATS"]["last_success"] = stamp(7)
+        self.state.state["_health"]["Page"]["last_success"] = stamp(11)
+        message = "\n".join(self.heartbeat(config))
+        self.assertIn("ATS: stale", message)
+        self.assertNotIn("Page: stale", message)
+        self.state.state["_health"]["Page"]["last_success"] = stamp(13)
+        self.assertIn("Page: stale", "\n".join(self.heartbeat(config)))
+
+    def test_heartbeat_chunks_large_catalog_and_reports_delivery_failure(self):
+        config = {"ats_companies": [{"name": f"Company {i}", "ats": "ashby"}
+                                    for i in range(300)]}
+        chunks = self.heartbeat(config)
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(chunk) <= hh.TELEGRAM_MAX_LEN - 100 for chunk in chunks))
+        self.assertIn("Company 299", "\n".join(chunks))
+        notifier = mock.Mock()
+        notifier.send.side_effect = [True, False]
+        with self.assertRaisesRegex(RuntimeError, "could not be delivered"):
+            hh.send_heartbeat(config, self.state, notifier)
+
+    def test_main_checkpoints_before_final_worker_finishes_and_orders_digest(self):
+        # Source 0 cannot finish until 25 later sources have been checkpointed.
+        # This fails deterministically if main waits for all futures first.
+        checkpointed = threading.Event()
+        config = {"keywords": ["intern"], "locations": ["india"],
+                  "ats_companies": [{"name": f"Source {i:02}", "ats": "ashby", "slug": f"s{i}"}
+                                    for i in range(26)], "custom_pages": []}
+        old_cwd = os.getcwd()
+        os.chdir(self.directory.name)
+        with open("config.yaml", "w") as stream:
+            json.dump(config, stream)
+        snapshots = []
+        original_save = hh.StateManager.save
+        original_record = hh.StateManager.record_source_run
+        recorded = []
+        def record(state, source, *args, **kwargs):
+            recorded.append(source)
+            return original_record(state, source, *args, **kwargs)
+        def save(state):
+            original_save(state)
+            if len(state.state.get("_health", {})) == 25:
+                snapshots.append(json.loads(json.dumps(state.state)))
+                checkpointed.set()
+        def hunt(comp, config, semaphores):
+            if comp["name"] == "Source 00" and not checkpointed.wait(5):
+                raise AssertionError("No checkpoint while last source was pending")
+            return {"comp": comp, "error": None,
+                    "matches": [{"id": comp["slug"], "title": "Intern", "location": "India",
+                                 "url": "https://example.test/job"}],
+                    "raw_count": 1, "raw_ids": {comp["slug"]},
+                    "duration": .1, "request_count": 1}
+        notifier = mock.Mock(enabled=True)
+        notifier.send.return_value = True
+        try:
+            with mock.patch.object(hh, "_hunt_ats_entry", side_effect=hunt), \
+                    mock.patch.object(hh.StateManager, "save", save), \
+                    mock.patch.object(hh.StateManager, "record_source_run", record), \
+                    mock.patch.object(hh, "Notifier", return_value=notifier), \
+                    mock.patch.object(hh, "write_step_summary") as summary, \
+                    mock.patch.object(sys, "argv", ["hunter", "--ats-only"]), \
+                    mock.patch.object(sys, "stdout", io.StringIO()):
+                hh.main()
+            self.assertEqual(len(snapshots), 1)
+            self.assertEqual(sorted(recorded), [comp["name"] for comp in config["ats_companies"]])
+            self.assertFalse(any(not key.startswith("_") for key in snapshots[0]))
+            jobs = summary.call_args.args[1]
+            self.assertEqual([job["company"] for job in jobs],
+                             [comp["name"] for comp in config["ats_companies"]])
+            state = hh.StateManager()
+            self.assertEqual(len(state.state["_health"]), 26)
+            self.assertTrue(all(not state.is_new_job(job["company"], job["id"]) for job in jobs))
+        finally:
+            checkpointed.set()
+            os.chdir(old_cwd)
 
 
 class TestCustomPageReliability(unittest.TestCase):

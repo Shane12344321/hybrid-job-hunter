@@ -1,0 +1,57 @@
+name: Offline Tests
+
+on:
+  push:
+    paths:
+      - '*.py'
+      - '**/*.py'
+      - 'config.yaml'
+      - 'requirements.txt'
+      - '.github/workflows/*.yml'
+  pull_request:
+    paths:
+      - '*.py'
+      - '**/*.py'
+      - 'config.yaml'
+      - 'requirements.txt'
+      - '.github/workflows/*.yml'
+
+# This workflow only checks repository contents; it never writes state or
+# contacts Telegram, ATS boards, or custom pages.
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Validate config
+      run: python hybrid_hunter.py --validate
+
+    - name: Run offline tests
+      run: |
+        python test_ats.py
+        python test_adapters.py
+        python test_priority_sources.py
+        python test_reliability.py
+        python test_expansion.py
+        python test_relevance.py
+
+    - name: Compile primary Python files
+      run: python -m py_compile hybrid_hunter.py add_source.py probe.py diagnose.py catalog_report.py

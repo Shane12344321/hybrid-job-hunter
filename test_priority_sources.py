@@ -170,6 +170,33 @@ class TestAtlassian(unittest.TestCase):
                 hunter().hunt_atlassian(
                     location="India", categories=["Interns", "Graduates"])
 
+    def test_empty_locations_can_be_retained_with_explicit_opt_in(self):
+        payload = [{"portalId": 242, "id": 43, "title": "Software Intern",
+                    "locations": [], "category": "Interns",
+                    "applyUrl": "https://example.test/43"}]
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            jobs = hunter().hunt_atlassian(
+                location="India", categories=["Interns", "Graduates"],
+                allow_unknown_location=True)
+        self.assertEqual(jobs, [])
+
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            jobs = hunter().hunt_atlassian(
+                location="", categories=["Interns", "Graduates"],
+                allow_unknown_location=True)
+        self.assertEqual([job["id"] for job in jobs], ["242:43"])
+        self.assertEqual(jobs[0]["location"], "Location not specified")
+
+    def test_empty_known_regional_portal_cannot_pass_india_filter(self):
+        payload = [{"portalId": 111, "id": 44, "title": "Software Intern",
+                    "locations": [], "category": "Interns",
+                    "applyUrl": "https://careers-americas.icims.com/jobs/44/apply"}]
+        with mock.patch.object(hh.requests, "get", return_value=response(payload)):
+            jobs = hunter().hunt_atlassian(
+                location="India", categories=["Interns", "Graduates"],
+                allow_unknown_location=True)
+        self.assertEqual(jobs, [])
+
     def test_malformed_listing_fails_instead_of_zero(self):
         with mock.patch.object(hh.requests, "get", return_value=response([{"id": 1}])):
             with self.assertRaisesRegex(ValueError, "missing"):

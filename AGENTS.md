@@ -37,6 +37,7 @@ IDs, page hashes, failure counts, undelivered digests) persists in
 | `.claude/skills/add-source/` | Decision tree for sources the probe can't handle (JS-only boards, program monitors) |
 | `.github/workflows/hunt.yml` | Hourly `--ats-only` + 4-hourly full run; commits `state.json` |
 | `.github/workflows/heartbeat.yml` | Daily `--heartbeat` status report (read-only, no browser) |
+| `.github/workflows/tests.yml` | Offline validation/tests on code/config pushes and pull requests |
 | `ADAPTERS_PLAN.md` | Design doc for the Phase 5 enterprise adapters |
 
 ## Running things
@@ -51,6 +52,7 @@ python3 test_priority_sources.py
 python3 test_ats.py
 python3 test_reliability.py
 python3 test_expansion.py
+python3 test_relevance.py
 
 # Live dry run of one source — the standard way to verify a config change:
 python3 hybrid_hunter.py --test --company "Exact Source Name"
@@ -83,6 +85,9 @@ locally unless explicitly asked.
   the Telegram digest is delivered or queued in `state.json[_pending]`
   (retried up to 5 attempts). Never reorder this — an alert must never be
   silently lost.
+- **Prune only observed sources.** Missing raw results mean a source was
+  skipped, excluded, or failed, not that its board is empty. Expiry pruning
+  may remove old IDs only for sources successfully read in the current run.
 - **Pagination budget.** Structured sources cap at ≤ 4 requests/run
   (~15s timeout). An incomplete read raises rather than returning a partial
   page. `max_pages:` raises the cap per source where the ATS forces it —
@@ -146,9 +151,11 @@ locally unless explicitly asked.
 
 ## Editing `config.yaml`
 
-- **Adding a company? Use `python3 add_source.py "Name" [--url URL]` first.**
-  It probes, verifies, appends (comment-preserving textual insert), and seeds
-  in one shot, rolling back on failure. Only fall back to hand-editing for
+- **Adding a company? Preview first with `python3 add_source.py "Name" --preview --review-out tmp/review.yaml` (optionally `--url URL`).**
+  The report records identity, duplicate checks, and relevance examples without
+  changing config/state. For an authorized unambiguous addition, apply with
+  `--batch tmp/review.yaml --approve "Name" --apply`; fresh verification and
+  scoped baselining run before success is reported. Only fall back to hand-editing for
   adapters it doesn't cover (oracle_hcm, google, intuit, goldman_higher,
   deshaw) or custom pages — the `/add-source` skill has the decision tree.
 - **Verify before adding by hand**: slugs/tenants 404 easily. Confirm the live

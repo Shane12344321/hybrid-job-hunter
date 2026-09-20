@@ -16,7 +16,7 @@ A hybrid job hunting automation script that combines the best of both worlds:
 | `oracle_hcm` | Oracle HCM Cloud (J.P. Morgan, Uber) | `host`, `site_number`, `keyword` or `queries`, optional `location`/`location_id`/`max_pages` (1–4 shared requests) |
 | `workday` | Workday CXS boards (NVIDIA, Citi, BlackRock, Adobe, Salesforce, Sprinklr, Fractal, …) | `tenant`, `wd_host`, `site`, optional `search`/`include_multi_location`/`max_pages` (1–12; Workday caps page size at 20, so wide `search` terms need more pages) |
 | `amazon` | amazon.jobs search | optional `query`, `categories` (server-side `category[]` filter), `country_code` (default `IND`; `loc_query` is ignored by amazon.jobs so this is the real location filter) |
-| `atlassian` | Atlassian public careers listings feed | optional `location`, `categories` |
+| `atlassian` | Atlassian public careers listings feed | optional `location`, `categories`, `allow_unknown_location` |
 | `eightfold` | Public Eightfold/PCSX boards (Microsoft, Qualcomm) | `base_url`, `domain`, optional `query`, `location`, `seniority` |
 | `microsoft` | Compatibility alias for Microsoft's Eightfold endpoint | optional `query`, `location` |
 | `google` | Google Careers server-rendered results | optional `query`, `location` |
@@ -66,14 +66,18 @@ This script is built to run entirely on **GitHub Actions for free**, with zero i
    - **Fastest way to add a company:**
 
      ```bash
-     python3 add_source.py "Figma"                          # probes Greenhouse/Ashby/Lever slugs
-     python3 add_source.py "NVIDIA" --url https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite
+     mkdir -p tmp
+     python3 add_source.py "Figma" --preview --review-out tmp/figma-review.yaml
+     python3 add_source.py --batch tmp/figma-review.yaml --approve "Figma" --apply
      python3 probe.py --batch candidates.yaml --status candidate --output probe-report.yaml
      python3 add_source.py --batch probe-report.yaml --approve "Company" --apply
      ```
 
-     This detects the ATS, appends a verified entry to `config.yaml`, dry-runs it
-     (`--test`), and baselines it (`--seed`) so the first live run doesn't flood you.
+     You can ask an agent to "track Company" or provide a careers/job URL.
+     The agent first previews identity, duplicates, and role-relevance examples.
+     Preview does not edit config or runtime state; application rechecks evidence,
+     appends a verified entry to `config.yaml`, dry-runs it (`--test`), and baselines
+     it (`--seed`) so the first live run doesn't flood you.
      It rolls the config back if verification fails. `python3 probe.py "Name or URL"`
      does the detection read-only. `python3 hybrid_hunter.py --validate` lints the
      config (missing adapter fields, duplicate names) without hunting.
@@ -193,13 +197,30 @@ python hybrid_hunter.py
 
 Useful flags:
 
+Role relevance is separate from career-stage keywords and locations. The
+included policy covers software, AI/ML, data, quant, technical cybersecurity,
+product management, technical consulting, and business/data analyst roles.
+Generic or conflicting evidence goes to review. Classification uses titles
+and role-specific metadata already returned by the source; it does not add
+job-detail requests or use an LLM.
+
+`role_relevance.mode` in `config.yaml` starts at `shadow`: existing alerts
+continue, while reports show proposed accepted/review/rejected counts. Set it
+to `enforce` after reviewing the comparison results: accepted jobs go in the
+main digest, uncertain jobs in **Needs review**, and rejected jobs are omitted.
+`off` restores previous filtering behavior without changing runtime state.
+Missing policy configuration also defaults to `off`. Previously delivered IDs
+are not replayed when a verdict changes. Existing pending messages are retained
+as queued, so pre-policy alerts may still arrive during rollout.
+
 - `python hybrid_hunter.py --test` — dry run: shows matches per source, no state changes, no notifications.
 - `python hybrid_hunter.py --seed` — baseline mode: marks all currently open matching jobs and page hashes as "seen" without notifying. Run this once after adding new companies to `config.yaml` to avoid an alert flood on the first live run.
 - `python hybrid_hunter.py --test --company "Microsoft"` — run or seed one named source. `--company` is repeatable and accepts configured aliases; associated fallback/program monitors are included automatically.
 - `python hybrid_hunter.py --ats-only` / `--pages-only` — hunt only ATS boards (no browser needed) or only Playwright custom pages. The scheduled workflow uses `--ats-only` for the hourly runs.
 - `python hybrid_hunter.py --test --ats-only --workers 4` — override the ATS
-  worker count for a run; workers only fetch, while state updates and digest
-  assembly remain deterministic in configuration order.
+  worker count for a run; workers only fetch. The main thread checkpoints
+  completed sources during crawling and assembles the final digest and report
+  in configuration order.
 - `python hybrid_hunter.py --heartbeat` — send a read-only status report (sources, finds in last 24h/7d, failing sources). Does not hunt.
 - `python diagnose.py --suggest-selectors` — print human-verification-required
   `job_selector`, `title_selector`, and (when inferable) `id_regex` snippets
@@ -219,8 +240,11 @@ Useful flags:
 
 Offline reliability checks are available through `python test_ats.py`,
 `python test_adapters.py`, `python test_priority_sources.py`, and
-`python test_reliability.py`, and `python test_expansion.py`; the hunt workflow
-runs all five before crawling.
+`python test_reliability.py`, `python test_expansion.py`, and
+`python test_relevance.py`; the hunt workflow runs all six before crawling.
+A separate offline workflow runs these checks
+and config validation on code/configuration pushes and pull requests. Automated
+state-only updates do not trigger that workflow.
 
 Delivery guarantees: live and heartbeat runs refuse to start without Telegram
 credentials. Matches are only marked as seen after the Telegram message is
@@ -229,3 +253,15 @@ digest remains in `state.json` under `_pending` and is retried on later runs;
 it is never discarded because of an attempt limit.
 
 Failure visibility: a source that fails 3 runs in a row (API error, wrong slug, bot-blocked or empty page) triggers a one-time ⚠️ Telegram warning, and a ✅ notice when it recovers. Custom pages returning empty or suspiciously short content (<200 chars — likely CAPTCHA/block) count as failures, not content changes. The daily heartbeat reports real stats: new roles in the last 24h/7d, jobs tracked, pending alerts, and any failing sources. On GitHub Actions, each run writes a per-source result table to the job summary.
+
+The heartbeat also flags sources with no successful check, or whose last
+successful check is more than 6 hours old (ATS) or 12 hours old (custom pages).
+Large reports are split into Telegram-sized messages. Collapse warnings retain
+their healthy comparison baseline across repeated degraded runs and failures:
+a zero-match warning clears when matches return, and a raw-posting warning
+clears at 20% of its baseline, provided the other collapse condition is absent.
+
+During ATS crawling, source health is checkpointed after each 25 completed
+sources and when all workers finish. Job IDs remain subject to delivery-before-
+dedup. Expiry pruning only considers successfully observed sources: a failed,
+skipped, or excluded source keeps its job history.

@@ -1,6 +1,7 @@
 """Offline tests for candidate discovery and reviewed batch onboarding."""
 import argparse
 import csv
+import io
 import json
 import os
 import sys
@@ -693,6 +694,106 @@ class TestCandidateLedger(unittest.TestCase):
 
 
 class TestReviewedBatch(unittest.TestCase):
+    def test_main_accepts_batch_review_out_and_forwards_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = os.path.join(directory, "report.yaml")
+            review = os.path.join(directory, "review.json")
+            with mock.patch.object(add_source, "run_batch") as run_batch, \
+                    mock.patch.object(
+                        add_source.sys, "argv",
+                        ["add_source.py", "--batch", report, "--review-out", review]):
+                add_source.main()
+            run_batch.assert_called_once_with(
+                report, apply=False, no_seed=False, approved_names=[],
+                allow_empty=False, auto_approve_verified=False,
+                review_out=review)
+
+    def test_main_accepts_batch_auto_approve_verified_and_forwards_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = os.path.join(directory, "report.yaml")
+            with mock.patch.object(add_source, "run_batch") as run_batch, \
+                    mock.patch.object(
+                        add_source.sys, "argv",
+                        ["add_source.py", "--batch", report,
+                         "--auto-approve-verified"]):
+                add_source.main()
+            run_batch.assert_called_once_with(
+                report, apply=False, no_seed=False, approved_names=[],
+                allow_empty=False, auto_approve_verified=True, review_out=None)
+
+    def test_main_rejects_single_source_flags_with_batch(self):
+        combinations = (
+            ("--url", "https://example.test/jobs"),
+            ("--ats", "ashby"),
+            ("--comment", "reviewed"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            report = os.path.join(directory, "report.yaml")
+            for flag, value in combinations:
+                with self.subTest(flag=flag), \
+                        mock.patch.object(add_source, "run_batch") as run_batch, \
+                        mock.patch.object(
+                            add_source.sys, "argv",
+                            ["add_source.py", "--batch", report, flag, value]), \
+                        mock.patch.object(add_source.sys, "stderr", io.StringIO()):
+                    with self.assertRaises(SystemExit) as raised:
+                        add_source.main()
+                    self.assertEqual(raised.exception.code, 2)
+                    run_batch.assert_not_called()
+
+    def test_main_rejects_review_options_with_sync_active(self):
+        combinations = (
+            ("--auto-approve-verified",),
+            ("--review-out", "review.json"),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            report = os.path.join(directory, "report.yaml")
+            for options in combinations:
+                with self.subTest(options=options), \
+                        mock.patch.object(add_source, "sync_active_candidates") as sync, \
+                        mock.patch.object(
+                            add_source.sys, "argv",
+                            ["add_source.py", "--batch", report,
+                             "--sync-active", *options]), \
+                        mock.patch.object(add_source.sys, "stderr", io.StringIO()):
+                    with self.assertRaises(SystemExit) as raised:
+                        add_source.main()
+                    self.assertEqual(raised.exception.code, 2)
+                    sync.assert_not_called()
+
+    def test_main_combined_batch_review_flags_write_review_without_apply(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = os.path.join(directory, "report.yaml")
+            review = os.path.join(directory, "review.yaml")
+            config = os.path.join(directory, "config.yaml")
+            with open(report, "w") as stream:
+                yaml.safe_dump({"candidates": [{"name": "Verified", "status": "candidate"}]}, stream)
+            with open(config, "w") as stream:
+                yaml.safe_dump({"ats_companies": [], "custom_pages": []}, stream)
+            refreshed = [{
+                "name": "Verified", "status": "probed",
+                "probe_status": "verified_endpoint", "live_postings": 2,
+                "suggested_entry": {
+                    "name": "Verified", "ats": "ashby", "slug": "verified",
+                },
+            }]
+            with mock.patch.object(add_source, "CONFIG_FILE", config), \
+                    mock.patch.object(
+                        add_source.probe, "batch_probe",
+                        return_value={"candidates": refreshed}) as batch_probe, \
+                    mock.patch.object(add_source.subprocess, "run") as apply:
+                with mock.patch.object(
+                        add_source.sys, "argv",
+                        ["add_source.py", "--batch", report,
+                         "--auto-approve-verified", "--review-out", review]):
+                    add_source.main()
+            batch_probe.assert_called_once_with(report)
+            apply.assert_not_called()
+            with open(review, encoding="utf-8") as stream:
+                payload = yaml.safe_load(stream)
+            self.assertTrue(payload["candidates"][0]["auto_approved"])
+            self.assertEqual(payload["actionable"][0]["name"], "Verified")
+
     def test_auto_approve_verified_rows_and_write_review_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
             report = os.path.join(directory, "report.yaml")

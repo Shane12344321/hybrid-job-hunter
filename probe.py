@@ -428,10 +428,132 @@ def check_board_identity(name, ats, slug):
 
 
 def check_entry_identity(name, entry):
-    """Apply slug-board identity checks to a discovered adapter entry."""
+    """Apply an identity check to a discovered adapter entry.
+
+    A live endpoint is not, by itself, evidence that it belongs to the
+    requested company.  Slug boards have a public title/payload check; the
+    other adapters use their structured account/tenant/domain identifiers or
+    the page's JobPosting ``hiringOrganization``.  ``None`` means the check
+    could not establish identity and must remain reviewable.
+    """
     if entry.get("ats") in {"greenhouse", "ashby", "lever"} and entry.get("slug"):
         return check_board_identity(name, entry["ats"], entry["slug"])
-    return True, None
+    if not isinstance(name, str) or not name.strip():
+        return None, "company name is required for identity verification"
+    aliases = _identity_aliases(name)
+    normalized = {re.sub(r"[^a-z0-9]+", "", alias) for alias in aliases}
+
+    def matches(value):
+        value = re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+        return bool(value and value in normalized)
+
+    ats = entry.get("ats")
+    if ats == "workday":
+        tenant, wd_host, site = entry.get("tenant"), entry.get("wd_host", "wd5"), entry.get("site")
+        url = f"https://{tenant}.{wd_host}.myworkdayjobs.com/{site}"
+        try:
+            response = requests.get(url, timeout=TIMEOUT, headers={
+                **HEADERS, "Accept": "text/html,application/xhtml+xml"})
+        except requests.RequestException as exc:
+            return None, f"Workday identity check failed: {exc}"
+        if response.status_code >= 400:
+            return None, f"Workday identity page returned HTTP {response.status_code}"
+        soup = BeautifulSoup(response.text, "html.parser")
+        title = soup.title.get_text(" ", strip=True) if soup.title else ""
+        final_host = (urlparse(response.url or url).hostname or "")
+        if _title_identity_matches(title, aliases) or _redirect_identity_matches(final_host, aliases):
+            return True, f"Workday official page: {title or final_host}"
+        return False, f"Workday page does not identify {name!r}: {title or final_host}"
+    if ats in {"smartrecruiters", "workable"}:
+        field = "company_id" if ats == "smartrecruiters" else "account"
+        value = entry.get(field)
+        if ats == "smartrecruiters":
+            endpoint = f"https://api.smartrecruiters.com/v1/companies/{value}"
+        else:
+            endpoint = f"https://www.workable.com/api/accounts/{value}"
+        try:
+            response = requests.get(endpoint, timeout=TIMEOUT, headers=HEADERS)
+        except requests.RequestException as exc:
+            return None, f"{ats} identity check failed: {exc}"
+        if response.status_code >= 400:
+            return None, f"{ats} identity endpoint returned HTTP {response.status_code}"
+        payload = _json_or_none(response)
+        observed = []
+        if isinstance(payload, dict):
+            for field_name in ("name", "companyName", "company_name", "displayName"):
+                if payload.get(field_name):
+                    observed.append(str(payload[field_name]))
+        if any(matches(item) for item in observed):
+            return True, f"{ats} structured company name: {observed[0]}"
+        return False, f"{ats} structured company name(s) {observed[:3]!r} do not identify {name!r}"
+    if ats == "amazon":
+        if matches("amazon"):
+            return True, "official amazon.jobs host"
+        return False, "amazon.jobs source can only identify Amazon"
+    if ats == "eightfold":
+        base_url = str(entry.get("base_url") or "").rstrip("/")
+        try:
+            response = requests.get(base_url + "/api/pcsx/search", params={
+                "domain": entry.get("domain"), "query": "intern",
+                "location": "India", "start": 0}, timeout=TIMEOUT, headers=HEADERS)
+        except requests.RequestException as exc:
+            return None, f"Eightfold identity check failed: {exc}"
+        if response.status_code >= 400:
+            return None, f"Eightfold identity endpoint returned HTTP {response.status_code}"
+        payload = _json_or_none(response)
+        observed = []
+        data = payload.get("data") if isinstance(payload, dict) else None
+        positions = data.get("positions") if isinstance(data, dict) else None
+        for position in positions or []:
+            if isinstance(position, dict):
+                for key in ("companyName", "company_name", "company", "organization"):
+                    if position.get(key):
+                        observed.append(str(position[key]))
+        if any(matches(item) for item in observed):
+            return True, f"Eightfold structured company name: {observed[0]}"
+        return None if not observed else False, (
+            "Eightfold positions contain no observable company identity"
+            if not observed else f"Eightfold company name(s) {observed[:3]!r} do not identify {name!r}")
+    if ats == "jsonld":
+        url = entry.get("url")
+        if not url:
+            return None, "JSON-LD entry has no URL for organization verification"
+        try:
+            response = requests.get(url, timeout=TIMEOUT, headers={
+                **HEADERS, "Accept": "text/html,application/xhtml+xml"})
+        except requests.RequestException as exc:
+            return None, f"JSON-LD identity check failed: {exc}"
+        if response.status_code >= 400:
+            return None, f"JSON-LD identity page returned HTTP {response.status_code}"
+        soup = BeautifulSoup(response.text, "html.parser")
+        found = []
+        for script in soup.find_all("script", attrs={"type": re.compile(
+                r"^application/ld\+json$", re.I)}):
+            try:
+                payload = json.loads(script.string or script.get_text())
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            values = payload if isinstance(payload, list) else (
+                payload.get("@graph", []) if isinstance(payload, dict)
+                and isinstance(payload.get("@graph"), list) else [payload])
+            for value in values:
+                if not isinstance(value, dict):
+                    continue
+                types = value.get("@type", [])
+                if isinstance(types, str):
+                    types = [types]
+                if not any(str(item).casefold() == "jobposting" for item in types):
+                    continue
+                org = value.get("hiringOrganization")
+                org_name = org.get("name") if isinstance(org, dict) else org
+                if org_name:
+                    found.append(str(org_name))
+                    if matches(org_name):
+                        return True, f"JobPosting hiringOrganization: {org_name}"
+        if found:
+            return False, f"JobPosting organization(s) {found[:3]!r} do not identify {name!r}"
+        return None, "JSON-LD page has no inspectable JobPosting hiringOrganization"
+    return None, f"identity verification is not implemented for {ats}"
 
 
 def _json_or_none(res):
@@ -830,12 +952,20 @@ def load_candidates(path):
             raise ValueError(f"candidate {index} must be a mapping")
         candidate = {key: value for key, value in row.items() if value not in (None, "")}
         name = candidate.get("name")
-        if not isinstance(name, str) or not name.strip():
+        draft_without_name = (
+            candidate.get("actionable") is False
+            and "name" in (candidate.get("missing_fields") or []))
+        if draft_without_name and name in (None, ""):
+            # Preview URL-only drafts are intentionally resumable but cannot
+            # invent a company name from an ATS slug/account.
+            name = ""
+        elif not isinstance(name, str) or not name.strip():
             raise ValueError(f"candidate {index} is missing a name")
         name = name.strip()
-        if name.casefold() in seen:
+        if name and name.casefold() in seen:
             raise ValueError(f"duplicate candidate name: {name}")
-        seen.add(name.casefold())
+        if name:
+            seen.add(name.casefold())
         candidate["name"] = name
         url = candidate.get("careers_url") or candidate.get("url")
         if url is not None and (not isinstance(url, str) or not _looks_like_url(url)):

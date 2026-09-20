@@ -23,6 +23,12 @@ TELEGRAM_MAX_LEN = 4096
 API_HEADERS = {"Accept-Encoding": "gzip, deflate", "User-Agent": "Mozilla/5.0"}
 FAILURE_ALERT_THRESHOLD = 3   # consecutive failed runs before a ⚠️ alert
 FAILING_SOURCE_RETRY_SECONDS = 6 * 60 * 60
+# Heartbeat freshness is intentionally looser than the normal schedule: an
+# hourly ATS run gets several missed cycles, while a four-hour page monitor
+# gets three cycles.  The ATS threshold also matches the six-hour failure
+# backoff, so a source skipped during backoff is not called stale prematurely.
+HEARTBEAT_ATS_STALE_SECONDS = 6 * 60 * 60
+HEARTBEAT_PAGE_STALE_SECONDS = 12 * 60 * 60
 MIN_PAGE_TEXT_CHARS = 200     # below this, a custom page is treated as blocked/broken
 HTTP_RETRY_ATTEMPTS = 3       # initial request plus two retries
 HTTP_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
@@ -30,6 +36,243 @@ HTTP_RETRY_AFTER_CAP = 20
 sleep = time.sleep             # patchable in offline tests
 DEFAULT_CONCURRENCY = 8
 MAX_CONCURRENCY = 32
+
+# Role relevance is deliberately a small, deterministic triage layer.  The
+# crawler's existing title/location eligibility remains the health signal and
+# is never filtered by this layer in shadow mode.
+DEFAULT_ROLE_RELEVANCE_POSITIVE = (
+    "software", "software engineer", "software development", "developer",
+    "programmer", "backend", "back-end", "frontend", "front-end",
+    "full stack", "full-stack", "web development", "mobile development",
+    "devops", "site reliability", "sre", "cloud engineer", "systems software",
+    "machine learning", "deep learning", "artificial intelligence",
+    "data science", "data scientist", "data engineer", "analytics engineer",
+    "ml engineer", "nlp", "natural language processing", "computer vision",
+    "quant", "quantitative", "algorithmic trading", "quantitative researcher",
+    "trading researcher", "cybersecurity", "cyber security",
+    "information security", "application security", "security engineer",
+    "product manager", "product management", "technical product",
+    "technology consulting", "technical consultant", "solutions consultant",
+    "business analyst", "data analyst", "business intelligence analyst",
+    "bi analyst",
+)
+DEFAULT_ROLE_RELEVANCE_NEGATIVE = (
+    "human resources", "hr", "recruiting", "recruiter", "talent acquisition",
+    "people operations", "sales", "account executive", "marketing",
+    "growth marketing", "content marketing", "brand marketing", "accounting",
+    "accountant", "clinical", "clinical research", "nurse", "nursing", "physician",
+    "pharmacovigilance", "mechanical engineer", "electrical engineer",
+    "civil engineer", "chemical engineer", "manufacturing engineer",
+    "hardware engineer", "process engineer", "quality engineer",
+    "industrial engineer", "environmental engineer", "biomedical engineer",
+    "mechanical engineering", "electrical engineering", "civil engineering",
+    "chemical engineering", "manufacturing engineering", "hardware engineering",
+    "process engineering", "quality engineering", "industrial engineering",
+    "environmental engineering", "biomedical engineering",
+)
+_ROLE_RELEVANCE_GENERIC = (
+    "analyst", "research", "researcher", "security", "engineer", "engineering",
+)
+
+
+def _role_policy(config):
+    """Return normalized role-relevance policy, with safe defaults."""
+    raw = config.get("role_relevance") if isinstance(config, dict) else None
+    raw = raw if isinstance(raw, dict) else {}
+    mode = raw.get("mode", "off")
+    positive = raw.get("positive_phrases", raw.get("positive", DEFAULT_ROLE_RELEVANCE_POSITIVE))
+    negative = raw.get("negative_phrases", raw.get("negative", DEFAULT_ROLE_RELEVANCE_NEGATIVE))
+    if not isinstance(positive, (list, tuple)):
+        positive = DEFAULT_ROLE_RELEVANCE_POSITIVE
+    if not isinstance(negative, (list, tuple)):
+        negative = DEFAULT_ROLE_RELEVANCE_NEGATIVE
+    return {
+        "mode": mode,
+        "positive_phrases": tuple(str(value).casefold().strip() for value in positive if str(value).strip()),
+        "negative_phrases": tuple(str(value).casefold().strip() for value in negative if str(value).strip()),
+    }
+
+
+def _phrase_hits(text, phrases):
+    text = text.casefold()
+    return [phrase for phrase in phrases
+            if re.search(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", text)]
+
+
+def _flatten_role_value(value):
+    """Flatten common ATS scalar/list/object values without fetching details."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, list):
+        return " ".join(part for item in value if (part := _flatten_role_value(item)))
+    if isinstance(value, dict):
+        parts = []
+        for key in ("name", "label", "title", "value", "text", "description", "html",
+                    "team", "department", "function", "category", "jobFamily"):
+            if key in value:
+                part = _flatten_role_value(value[key])
+                if part:
+                    parts.append(part)
+        return " ".join(parts)
+    return ""
+
+
+def _normalize_role_context(context):
+    """Keep only the promised role-specific context fields."""
+    if not isinstance(context, dict):
+        return {}
+    normalized = {}
+    for key in ("department", "category", "description"):
+        value = _flatten_role_value(context.get(key))
+        if value:
+            # Descriptions are evidence, not an invitation to carry an entire
+            # posting into state/digests. The adapter supplies role text only.
+            normalized[key] = value[:4000]
+    return normalized
+
+
+def _role_context_from_payload(payload):
+    """Extract dependable ATS role metadata without another request.
+
+    The output schema is intentionally narrow so location, employer and
+    generic board text cannot become relevance evidence by accident.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    field_groups = {
+        "department": (
+            "department", "departmentName", "jobDepartment", "jobFunction",
+            "function", "team", "division", "businessUnit", "businessUnitName",
+            "jobFamily", "job_family", "departments",
+        ),
+        "category": ("category", "jobCategory", "categories", "categoryName",
+                      "jobFamilyGroup", "jobProfile"),
+        "description": (
+            "descriptionPlain", "description", "jobDescription", "jobDescriptionText",
+            "jobAd", "content",
+        ),
+    }
+    context = {}
+    for target, keys in field_groups.items():
+        values = [_flatten_role_value(payload[key]) for key in keys if key in payload]
+        value = " ".join(item for item in values if item)
+        if value:
+            context[target] = value[:4000]
+    return _normalize_role_context(context)
+
+
+def _with_role_context(record, payload):
+    """Add role_context only when a payload exposes dependable role fields."""
+    context = _role_context_from_payload(payload)
+    if context:
+        record = dict(record)
+        record["role_context"] = context
+    return record
+
+
+def _role_context_signal_text(context):
+    """Select role-duty text and discard common company boilerplate."""
+    parts = [context.get(key, "") for key in ("department", "category")]
+    description = context.get("description", "")
+    if description:
+        # A description may be supplied by an ATS as a whole job ad. Keep
+        # sentences that look like duties/requirements, but do not let a
+        # company/about-us sentence (for example, "we build AI") classify a
+        # generic role merely because the employer is technical.
+        sentences = re.split(r"(?<=[.!?])\s+|[\n\r]+", description)
+        duty_markers = (
+            "responsib", "develop", "design", "implement", "build", "debug",
+            "analy", "research", "model", "code", "program", "engineer",
+            "maintain", "test", "deploy", "using", "work on", "you will",
+            "skills", "experience", "qualification", "requirement", "manage",
+        )
+        boilerplate_markers = (
+            "our company", "the company", "about us", "our mission", "our values",
+            "we are a", "we're a", "join our", "company culture", "equal opportunity",
+        )
+        for sentence in sentences:
+            lower = sentence.casefold().strip()
+            if (not lower or lower.startswith(("we ", "we're ", "our ", "the company "))
+                    or any(marker in lower for marker in boilerplate_markers)):
+                continue
+            if any(marker in lower for marker in duty_markers):
+                parts.append(sentence)
+    return " ".join(part for part in parts if part)
+
+
+def classify_role(job, config):
+    """Classify one already-eligible job as accepted, review, or rejected.
+
+    This function is intentionally mode-independent: callers may use it for
+    fixture evaluation even when runtime policy is ``off``. Only ``title`` and
+    the optional, already-fetched ``role_context`` are inspected.
+    """
+    if not isinstance(job, dict):
+        raise ValueError("job must be a mapping")
+    title = _flatten_role_value(job.get("title"))
+    context = _normalize_role_context(job.get("role_context"))
+    context_text = _role_context_signal_text(context)
+    policy = _role_policy(config if isinstance(config, dict) else {})
+    positive = _phrase_hits(title, policy["positive_phrases"])
+    negative = _phrase_hits(title, policy["negative_phrases"])
+    context_positive = _phrase_hits(context_text, policy["positive_phrases"])
+    context_negative = _phrase_hits(context_text, policy["negative_phrases"])
+    generic = _phrase_hits(title, _ROLE_RELEVANCE_GENERIC)
+
+    evidence = []
+    evidence.extend(f"title:+{phrase}" for phrase in positive)
+    evidence.extend(f"title:-{phrase}" for phrase in negative)
+    evidence.extend(f"role_context:+{phrase}" for phrase in context_positive)
+    evidence.extend(f"role_context:-{phrase}" for phrase in context_negative)
+
+    # An explicit unrelated title is authoritative over generic metadata. A
+    # strong positive context signal still creates a conflict and therefore a
+    # human review item rather than silently accepting the role.
+    if negative and positive:
+        verdict = "review"
+        reason = "conflicting strong title and role-context signals"
+    elif negative and context_positive:
+        verdict = "rejected"
+        reason = "title's explicit unrelated role overrides generic technical metadata"
+    elif negative:
+        verdict = "rejected"
+        reason = "title contains an explicitly unrelated role signal"
+    elif positive and context_negative:
+        verdict = "review"
+        reason = "conflicting strong title and role-context signals"
+    elif positive or context_positive:
+        verdict = "accepted"
+        reason = "strong technical or adjacent role signal found"
+    elif context_negative:
+        verdict = "rejected"
+        reason = "role context contains an explicitly unrelated function"
+    elif generic:
+        verdict = "review"
+        reason = "role is generic or needs context to determine relevance"
+    else:
+        verdict = "review"
+        reason = "no deterministic relevance signal found"
+    if not evidence:
+        evidence = ["title-only" if not context else "role context inspected"]
+    return {"verdict": verdict, "reason": reason, "evidence": evidence}
+
+
+def annotate_role_relevance(jobs, config):
+    """Return copies of jobs annotated under shadow/enforce policy.
+
+    No job is filtered or dropped. This preserves source health counts and raw
+    identifiers while allowing a later delivery step to act on the verdict.
+    """
+    policy = _role_policy(config if isinstance(config, dict) else {})
+    annotated = []
+    for job in jobs or []:
+        copy = dict(job)
+        if policy["mode"] in {"shadow", "enforce"}:
+            copy["relevance"] = classify_role(copy, config)
+        annotated.append(copy)
+    return annotated
 
 
 def _parse_ts(ts):
@@ -263,7 +506,8 @@ class StateManager:
         """
         if not isinstance(days, (int, float)) or days < 1:
             raise ValueError("days must be positive")
-        current_raw_results = current_raw_results or {}
+        if current_raw_results is None:
+            current_raw_results = {}
         normalized = {
             str(name).casefold(): {str(job_id) for job_id in ids}
             for name, ids in current_raw_results.items()
@@ -274,8 +518,15 @@ class StateManager:
         for source, entry in self.state.items():
             if source.startswith("_") or not isinstance(entry, dict):
                 continue
+            # An absent source was not successfully observed this run.  It
+            # may have failed, been skipped by backoff, or been excluded by a
+            # shard/company filter, and must not be treated like a successful
+            # empty result.  An explicitly present empty set is different: it
+            # is a successful read of a board with no raw postings.
+            if source.casefold() not in normalized:
+                continue
             seen = entry.setdefault("seen", {})
-            current = normalized.get(source.casefold(), set())
+            current = normalized[source.casefold()]
             kept_jobs = []
             for job_id in entry.get("jobs", []):
                 key = str(job_id)
@@ -285,6 +536,7 @@ class StateManager:
                     # is observed, but never infer that it is safe to delete.
                     if key in current:
                         seen[key] = now
+                        self.dirty = True
                     kept_jobs.append(job_id)
                     continue
                 try:
@@ -325,6 +577,34 @@ class StateManager:
         zero_streak = previous.get("successful_zero_streak", 0)
         if success:
             zero_streak = zero_streak + 1 if match_count == 0 else 0
+
+        def valid_count(value):
+            return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+        # Keep the last demonstrably healthy comparison point separate from
+        # the latest run.  Once a collapse is suspected, later degraded runs
+        # and failures must not move that point forward and make the collapse
+        # disappear by comparing 10 with 10 instead of with 100.
+        healthy_matches = previous.get("healthy_match_baseline")
+        healthy_raw = previous.get("healthy_raw_baseline")
+        if not valid_count(healthy_matches) and valid_count(previous.get("last_match_count")):
+            healthy_matches = previous["last_match_count"]
+        if not valid_count(healthy_raw) and valid_count(previous.get("raw_count")):
+            healthy_raw = previous["raw_count"]
+        suspect = previous.get("suspect")
+        suspect_kind = previous.get("suspect_kind")
+        suspect_baseline_matches = previous.get("suspect_baseline_matches")
+        suspect_baseline_raw = previous.get("suspect_baseline_raw")
+        if suspect and not suspect_kind:
+            suspect_kind = "raw" if str(suspect).startswith("raw postings") else "matches"
+        if suspect and suspect_kind == "raw" and not valid_count(suspect_baseline_raw):
+            match = re.search(r"from (\d+) to (\d+)", str(suspect))
+            if match:
+                suspect_baseline_raw = int(match.group(1))
+        if suspect and suspect_kind == "matches" and not valid_count(suspect_baseline_matches):
+            match = re.search(r"from (\d+) to zero", str(suspect))
+            if match:
+                suspect_baseline_matches = int(match.group(1))
         entry = {
             "source_type": source_type,
             "last_run": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -335,6 +615,10 @@ class StateManager:
             "duration_ms": max(0, int(duration_seconds * 1000)),
             "request_count": max(0, int(request_count)),
         }
+        if valid_count(healthy_matches):
+            entry["healthy_match_baseline"] = healthy_matches
+        if valid_count(healthy_raw):
+            entry["healthy_raw_baseline"] = healthy_raw
         if success:
             entry["last_success"] = entry["last_run"]
             if previous.get("last_failure"):
@@ -344,20 +628,85 @@ class StateManager:
             entry["last_success"] = previous.get("last_success")
             entry["reason"] = str(reason)[:200]
         if success:
-            previous_matches = previous.get("last_match_count")
-            previous_raw = previous.get("raw_count")
-            suspect = None
-            if (isinstance(previous_matches, int) and previous_matches >= 5
-                    and match_count == 0):
-                suspect = (
-                    f"filtered matches collapsed from {previous_matches} to zero")
-            elif (isinstance(previous_raw, int) and previous_raw >= 20
-                  and isinstance(raw_count, int)
-                  and raw_count < previous_raw * 0.2):
-                suspect = (
-                    f"raw postings collapsed from {previous_raw} to {raw_count}")
             if suspect:
-                entry["suspect"] = suspect
+                # A zero-match collapse is no longer demonstrable once any
+                # match is parsed.  Raw-posting collapse recovers once the
+                # board reaches the boundary that defines a non-collapse
+                # (20% of the preserved healthy baseline).
+                if suspect_kind == "matches":
+                    recovered = match_count != 0
+                else:
+                    recovered = (
+                        valid_count(raw_count) and valid_count(suspect_baseline_raw)
+                        and raw_count >= suspect_baseline_raw * 0.2)
+                if (recovered and suspect_kind == "matches"
+                        and valid_count(healthy_raw) and healthy_raw >= 20
+                        and valid_count(raw_count) and raw_count < healthy_raw * 0.2):
+                    # Finding one match does not clear a simultaneous raw
+                    # collapse; keep comparing with the original healthy run.
+                    recovered = False
+                    suspect_kind = "raw"
+                    suspect_baseline_raw = healthy_raw
+                elif (recovered and suspect_kind == "raw"
+                      and valid_count(healthy_matches) and healthy_matches >= 5
+                      and match_count == 0):
+                    recovered = False
+                    suspect_kind = "matches"
+                    suspect_baseline_matches = healthy_matches
+                if recovered:
+                    suspect = None
+                    suspect_kind = None
+                    suspect_baseline_matches = None
+                    suspect_baseline_raw = None
+                    if valid_count(match_count):
+                        healthy_matches = match_count
+                    if valid_count(raw_count):
+                        healthy_raw = raw_count
+                else:
+                    # Retain the original comparison baseline and refresh the
+                    # observed value in the explanatory text.
+                    if suspect_kind == "matches":
+                        suspect = (
+                            f"filtered matches collapsed from "
+                            f"{suspect_baseline_matches} to zero")
+                    else:
+                        suspect = (
+                            f"raw postings collapsed from {suspect_baseline_raw} "
+                            f"to {raw_count}")
+            else:
+                # Compare against the last healthy run, then advance the
+                # healthy baseline only when no collapse is suspected.
+                previous_matches = healthy_matches
+                previous_raw = healthy_raw
+                if (valid_count(previous_matches) and previous_matches >= 5
+                        and match_count == 0):
+                    suspect = (
+                        f"filtered matches collapsed from {previous_matches} to zero")
+                    suspect_kind = "matches"
+                    suspect_baseline_matches = previous_matches
+                elif (valid_count(previous_raw) and previous_raw >= 20
+                      and valid_count(raw_count)
+                      and raw_count < previous_raw * 0.2):
+                    suspect = (
+                        f"raw postings collapsed from {previous_raw} to {raw_count}")
+                    suspect_kind = "raw"
+                    suspect_baseline_raw = previous_raw
+                else:
+                    if valid_count(match_count):
+                        healthy_matches = match_count
+                    if valid_count(raw_count):
+                        healthy_raw = raw_count
+            if valid_count(healthy_matches):
+                entry["healthy_match_baseline"] = healthy_matches
+            if valid_count(healthy_raw):
+                entry["healthy_raw_baseline"] = healthy_raw
+        if suspect:
+            entry["suspect"] = suspect
+            entry["suspect_kind"] = suspect_kind
+            if valid_count(suspect_baseline_matches):
+                entry["suspect_baseline_matches"] = suspect_baseline_matches
+            if valid_count(suspect_baseline_raw):
+                entry["suspect_baseline_raw"] = suspect_baseline_raw
         health[source] = entry
         self.dirty = True
 
@@ -455,6 +804,41 @@ def _clip(value, limit):
     return text if len(text) <= limit else text[:limit - 1] + "…"
 
 
+def _telegram_length(text):
+    """Return Telegram's character count for a message.
+
+    Telegram measures message text in UTF-16 code units.  Python's ``len``
+    counts Unicode code points instead, so a message containing emoji can be
+    rejected even when its Python length is below ``TELEGRAM_MAX_LEN``.
+    Counting the encoded form is conservative for HTML messages (the markup
+    itself is included), which is exactly what we want before sending.
+    """
+    return len(str(text).encode("utf-16-le")) // 2
+
+
+def _escape_plain_chunks(text, max_length):
+    """Convert an oversized line to safe HTML-sized plain-text chunks."""
+    # Chunk the raw text first.  Splitting an already escaped string can cut
+    # an entity (for example ``&amp;``) in half and leave invalid Telegram
+    # HTML at a chunk boundary.
+    raw = str(text)
+    chunks = []
+    current = []
+    current_length = 0
+    for character in raw:
+        escaped_character = html.escape(character)
+        character_length = _telegram_length(escaped_character)
+        if current and current_length + character_length > max_length:
+            chunks.append(html.escape("".join(current)))
+            current = []
+            current_length = 0
+        current.append(character)
+        current_length += character_length
+    if current:
+        chunks.append(html.escape("".join(current)))
+    return chunks
+
+
 def build_digest(new_jobs, page_changes, warnings=None):
     """Group all matches from one run into Telegram-sized message chunks.
     `warnings` are pre-escaped HTML lines (source failures/recoveries)."""
@@ -497,18 +881,20 @@ def build_digest(new_jobs, page_changes, warnings=None):
     bounded_lines = []
     max_chunk = TELEGRAM_MAX_LEN - 100
     for line in lines:
-        if len(line) <= max_chunk:
+        if _telegram_length(line) <= max_chunk:
             bounded_lines.append(line)
             continue
-        plain = re.sub(r"<[^>]+>", "", line)
-        for start in range(0, len(plain), 600):
-            bounded_lines.append(html.escape(plain[start:start + 600]))
+        # Warnings are pre-escaped HTML. Decode entities after removing tags
+        # so the raw-text chunker can escape each completed chunk exactly
+        # once (otherwise ``&amp;`` would become ``&amp;amp;``).
+        plain = html.unescape(re.sub(r"<[^>]+>", "", line))
+        bounded_lines.extend(_escape_plain_chunks(plain, max_chunk))
 
     chunks = []
     current = ""
     for line in bounded_lines:
         candidate = f"{current}\n{line}" if current else line
-        if len(candidate) > max_chunk:
+        if _telegram_length(candidate) > max_chunk:
             if current:
                 chunks.append(current)
             current = line
@@ -679,7 +1065,8 @@ class ATSHunter:
                     or not isinstance(location, str) or not isinstance(job_url, str) or not job_url):
                 raise ValueError("Ashby job missing id/title/location/jobUrl")
             if self.matches_criteria(title, location, keywords):
-                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+                matches.append(_with_role_context(
+                    {"id": job_id, "title": title, "location": location, "url": job_url}, job))
         self.last_raw_ids = raw_ids
         return matches
 
@@ -705,7 +1092,8 @@ class ATSHunter:
                     or not isinstance(location, str) or not isinstance(job_url, str) or not job_url):
                 raise ValueError("Lever posting missing id/text/location/hostedUrl")
             if self.matches_criteria(title, location, keywords):
-                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+                matches.append(_with_role_context(
+                    {"id": job_id, "title": title, "location": location, "url": job_url}, job))
         self.last_raw_ids = raw_ids
         return matches
 
@@ -732,7 +1120,8 @@ class ATSHunter:
                     or not isinstance(location, str) or not isinstance(job_url, str) or not job_url):
                 raise ValueError("Greenhouse job missing id/title/location/absolute_url")
             if self.matches_criteria(title, location, keywords):
-                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+                matches.append(_with_role_context(
+                    {"id": job_id, "title": title, "location": location, "url": job_url}, job))
         self.last_raw_ids = raw_ids
         return matches
 
@@ -801,19 +1190,20 @@ class ATSHunter:
                     or not isinstance(job_url, str) or not job_url.strip()
                     or not location_text):
                 continue
-            postings.append((str(identifier), title, location_text, job_url))
+            postings.append((str(identifier), title, location_text, job_url, obj))
         if not postings and not allow_empty_jsonld:
             raise ValueError("JSON-LD page contains no JobPosting objects")
         self.last_raw_count = len(postings)
         raw_ids = set()
         matches = []
-        for job_id, title, location_text, job_url in postings:
+        for job_id, title, location_text, job_url, source_job in postings:
             if job_id in raw_ids:
                 continue
             raw_ids.add(job_id)
             if self.matches_criteria(title, location_text, keywords):
-                matches.append({"id": job_id, "title": title,
-                                "location": location_text, "url": job_url})
+                matches.append(_with_role_context(
+                    {"id": job_id, "title": title,
+                     "location": location_text, "url": job_url}, source_job))
         self.last_raw_ids = raw_ids
         return matches
 
@@ -891,12 +1281,12 @@ class ATSHunter:
                         continue
                     seen_ids.add(job_id)
                     if self.matches_criteria(title, location_text, keywords):
-                        matches.append({
+                        matches.append(_with_role_context({
                             "id": job_id,
                             "title": title,
                             "location": location_text,
                             "url": f"https://jobs.smartrecruiters.com/{company_id}/{job_id}",
-                        })
+                        }, posting))
                 offset += len(postings)
                 if not postings and offset < expected_total:
                     raise RuntimeError(
@@ -961,10 +1351,10 @@ class ATSHunter:
                 continue
             seen_jobs[job_id] = signature
             if self.matches_criteria(title, location_text, keywords):
-                matches.append({
+                matches.append(_with_role_context({
                     "id": job_id, "title": title,
                     "location": location_text, "url": job_url,
-                })
+                }, job))
         self.last_raw_ids = set(seen_jobs)
         return matches
 
@@ -1050,7 +1440,8 @@ class ATSHunter:
                     seen_job_ids[job_id] = signature
                     if self.matches_criteria(title, location_text, keywords):
                         job_url = f"https://{host}/hcmUI/CandidateExperience/en/sites/{site_number}/job/{job_id}"
-                        matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
+                        matches.append(_with_role_context(
+                            {"id": job_id, "title": title, "location": location_text, "url": job_url}, job))
                 page += 1
                 if total == 0 or fetched >= total or not reqs:
                     break
@@ -1157,7 +1548,8 @@ class ATSHunter:
                 # Stable dedup key: trailing requisition id (e.g. JR1988855),
                 # falling back to the full path so IDs never come from position.
                 job_url = f"{base}/en-US/{site}{path}"
-                matches.append({"id": job_id, "title": title, "location": location, "url": job_url})
+                matches.append(_with_role_context(
+                    {"id": job_id, "title": title, "location": location, "url": job_url}, job))
             if (page + 1) * limit >= total or not postings:
                 break
         if total is not None and fetched < total:
@@ -1218,17 +1610,25 @@ class ATSHunter:
                 raise ValueError("Amazon job missing id/title/location/job_path")
             if self.matches_criteria(title, location_text, keywords):
                 job_url = f"https://www.amazon.jobs{job_path}"
-                matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
+                matches.append(_with_role_context(
+                    {"id": job_id, "title": title, "location": location_text, "url": job_url}, job))
         self.last_raw_ids = raw_ids
         return matches
 
-    def hunt_atlassian(self, location="India", categories=None, keywords=None):
+    def hunt_atlassian(self, location="India", categories=None, keywords=None,
+                       allow_unknown_location=False):
         """Read Atlassian's public careers listings feed directly.
 
         The all-jobs page's React widget can fail before it renders any cards,
         while this one-request JSON feed remains the page's source of truth.
         Category filters cover Interns/Graduates whose titles do not always
-        contain a global keyword; exclude-keywords still apply.
+        contain a global keyword; exclude-keywords still apply.  Atlassian has
+        occasionally emitted valid listings with ``locations: []``.  Keep
+        the strict default for callers that require a location, while allowing
+        an explicit source-level opt-in to retain rows from genuinely unknown
+        portals as ``Location not specified`` rather than failing the entire
+        feed. Known regional portals are labelled with their region so they
+        cannot accidentally pass an India location filter.
         """
         url = "https://www.atlassian.com/endpoint/careers/listings"
         res = self._get(url, timeout=20, headers={**API_HEADERS, "Accept": "application/json"})
@@ -1261,12 +1661,39 @@ class ATSHunter:
                 continue
             seen_ids[job_id] = signature
             location_text = ", ".join(value for value in locations if value)
+            regional_unknown = False
             if not location_text.strip():
-                raise ValueError("Atlassian listing has an empty location")
+                portal_host = urlparse(job_url).netloc.casefold()
+                regional_portals = {
+                    "careers-americas.icims.com": "Americas",
+                    "globalcareers-atlassian.icims.com": "Global",
+                    "careers-apac-atlassian.icims.com": "APAC",
+                    "campus-globalcareers-atlassian.icims.com": "Global",
+                }
+                region = regional_portals.get(portal_host)
+                if region:
+                    # The portal identifies only a broad region, not a
+                    # country or city. Keep that uncertainty explicit and do
+                    # not let a region name satisfy an India filter.
+                    location_text = f"{region} (location not specified)"
+                    regional_unknown = True
+                elif allow_unknown_location:
+                    # Do not invent a country or city. The explicit marker
+                    # keeps the uncertainty visible in digests/state while
+                    # retaining rows from an otherwise valid new portal.
+                    location_text = "Location not specified"
+                else:
+                    raise ValueError("Atlassian listing has an empty location")
             # Word-boundary like location_matches elsewhere: a substring test
             # matched "india" inside "Indiana, United States".
-            location_match = not location or bool(re.search(
-                r'\b' + re.escape(location) + r'\b', location_text, re.IGNORECASE))
+            unknown_location = (location_text == "Location not specified"
+                                and not regional_unknown)
+            # Unknown is not evidence for any configured country. The opt-in
+            # keeps a structurally valid row observable without allowing it
+            # through a location gate.
+            location_match = (not location) if unknown_location else (
+                not location or bool(re.search(
+                    r'\b' + re.escape(location) + r'\b', location_text, re.IGNORECASE)))
             # `categories` is a shortcut, not a gate: a listing in a wanted
             # category counts even if its title carries no keyword, but a
             # keyword title still counts on its own. Requiring both meant that
@@ -1282,8 +1709,9 @@ class ATSHunter:
             in_category = bool(wanted_categories) and category.casefold() in wanted_categories
             title_match = self.title_matches(title, keywords)
             if not excluded_title and location_match and (in_category or title_match):
-                matches.append({"id": job_id, "title": title, "location": location_text,
-                                "url": job_url})
+                matches.append(_with_role_context(
+                    {"id": job_id, "title": title, "location": location_text,
+                     "url": job_url}, job))
         self.last_raw_ids = set(seen_ids)
         return matches
 
@@ -1348,7 +1776,8 @@ class ATSHunter:
                     raise ValueError("Eightfold position missing recognized location data")
                 if self.matches_criteria(title, location_text, keywords):
                     job_url = urljoin(base_url.rstrip("/") + "/", position_url)
-                    matches.append({"id": job_id, "title": title, "location": location_text, "url": job_url})
+                    matches.append(_with_role_context(
+                        {"id": job_id, "title": title, "location": location_text, "url": job_url}, job))
             start += len(positions)
             if total == 0 or start >= total or not positions:
                 break
@@ -1411,8 +1840,9 @@ class ATSHunter:
                 raw_count += 1
                 raw_ids.add(id_match.group(1))
                 if self.matches_criteria(title, location_text, keywords):
-                    matches.append({"id": id_match.group(1), "title": title,
-                                    "location": location_text, "url": job_url})
+                    matches.append(_with_role_context(
+                        {"id": id_match.group(1), "title": title,
+                         "location": location_text, "url": job_url}, card))
             if parsed == 0:
                 raise ValueError("Google Careers cards found but none had the expected structure")
             fetched_pages += 1
@@ -1477,8 +1907,9 @@ class ATSHunter:
                                   if location_text.lower() == "multiple locations"
                                   else self.matches_criteria(title, location_text, keywords))
                 if criteria_match:
-                    matches.append({"id": job_id, "title": title,
-                                    "location": location_text, "url": job_url})
+                    matches.append(_with_role_context(
+                        {"id": job_id, "title": title,
+                         "location": location_text, "url": job_url}, card))
             page += 1
             next_link = results.select_one("nav.pagination a.next[href]:not(.disabled)")
             next_url = urljoin(base_url, next_link["href"]) if next_link else None
@@ -1554,8 +1985,9 @@ class ATSHunter:
                 if not location_text:
                     raise ValueError("Goldman Higher role missing recognized location data")
                 if self.matches_criteria(title, location_text, keywords):
-                    matches.append({"id": job_id, "title": title, "location": location_text,
-                                    "url": f"https://higher.gs.com/roles/{job_id}"})
+                    matches.append(_with_role_context(
+                        {"id": job_id, "title": title, "location": location_text,
+                         "url": f"https://higher.gs.com/roles/{job_id}"}, job))
             if total == 0 or fetched >= total or not items:
                 break
         if total is not None and fetched < total:
@@ -1600,8 +2032,9 @@ class ATSHunter:
                 continue
             location_match = re.search(r"\(([^)]+)\)", title)
             location_text = location_match.group(1) if location_match else "Worldwide"
-            matches.append({"id": id_match.group(1), "title": title,
-                            "location": location_text, "url": job_url})
+            matches.append(_with_role_context(
+                {"id": id_match.group(1), "title": title,
+                 "location": location_text, "url": job_url}, anchor))
         # Cards existed but only false positives such as "Internal ..." is a
         # valid zero after exact word-boundary title filtering.
         self.last_raw_count = parsed
@@ -1698,6 +2131,7 @@ def _hunt_ats_entry(comp, config, semaphores):
                 matches = hunter.hunt_atlassian(
                     location=comp.get("location", "India"),
                     categories=comp.get("categories", ["Interns", "Graduates"]),
+                    allow_unknown_location=comp.get("allow_unknown_location", False),
                     keywords=kw_override)
             elif ats_type == "microsoft":
                 matches = hunter.hunt_microsoft(
@@ -1726,7 +2160,7 @@ def _hunt_ats_entry(comp, config, semaphores):
             else:
                 raise ValueError(f"unknown ats type '{ats_type}'")
         return {
-            "comp": comp, "matches": matches, "error": None,
+            "comp": comp, "matches": annotate_role_relevance(matches, config), "error": None,
             "raw_count": hunter.last_raw_count,
             "raw_ids": set(hunter.last_raw_ids),
             "request_count": hunter.request_count,
@@ -1744,6 +2178,7 @@ def _hunt_ats_entry(comp, config, semaphores):
 
 class CustomWebHunter:
     def __init__(self, config):
+        self.config = config
         self.keywords = [k.lower() for k in config.get("keywords", [])]
         self.locations = [l.lower() for l in config.get("locations", [])]
         self.exclude_locations = [l.lower() for l in config.get("exclude_locations") or []]
@@ -1850,10 +2285,23 @@ class CustomWebHunter:
             else:
                 criteria_match = True
             if criteria_match:
-                jobs.append({"id": job_id, "title": title,
-                             "location": location_text or "India (source-filtered)",
-                             "url": job_url})
-        return {"jobs": jobs}
+                record = {"id": job_id, "title": title,
+                          "location": location_text or "India (source-filtered)",
+                          "url": job_url}
+                role_context = {}
+                for field, selector in (
+                        ("department", page_config.get("department_selector")),
+                        ("category", page_config.get("category_selector")),
+                        ("description", page_config.get("description_selector"))):
+                    if selector:
+                        element = card.select_one(selector)
+                        if element:
+                            role_context[field] = element.get_text(" ", strip=True)
+                role_context = _normalize_role_context(role_context)
+                if role_context:
+                    record["role_context"] = role_context
+                jobs.append(record)
+        return {"jobs": annotate_role_relevance(jobs, self.config)}
 
     def hunt(self, page_config, attempts=2):
         """Render a custom page, retrying once on a transient failure.
@@ -2164,6 +2612,21 @@ def validate_config(config):
             or not 1 <= concurrency <= MAX_CONCURRENCY):
         problems.append(
             f"concurrency must be an integer from 1 to {MAX_CONCURRENCY}")
+    role_relevance = config.get("role_relevance", {})
+    if role_relevance is None:
+        role_relevance = {}
+    if not isinstance(role_relevance, dict):
+        problems.append("role_relevance must be a mapping")
+        role_relevance = {}
+    mode = role_relevance.get("mode", "off")
+    if mode not in {"off", "shadow", "enforce"}:
+        problems.append("role_relevance.mode must be one of: off, shadow, enforce")
+    for field in ("positive_phrases", "negative_phrases", "positive", "negative"):
+        if field in role_relevance:
+            values = role_relevance[field]
+            if (not isinstance(values, list)
+                    or any(not isinstance(item, str) or not item.strip() for item in values)):
+                problems.append(f"role_relevance.{field} must be a list of non-empty strings")
     for key in ("keywords", "exclude_keywords", "locations", "exclude_locations"):
         value = config.get(key, [])
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
@@ -2236,6 +2699,9 @@ def validate_config(config):
             if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= ceiling:
                 problems.append(
                     f"{name}: max_pages must be an integer from 1 to {ceiling}")
+        if "allow_unknown_location" in entry and not isinstance(
+                entry["allow_unknown_location"], bool):
+            problems.append(f"{name}: allow_unknown_location must be a boolean")
         entry_aliases = entry.get("aliases") or []
         if not isinstance(entry_aliases, list) or any(not isinstance(a, str) or not a for a in entry_aliases):
             problems.append(f"{name}: aliases must be a list of non-empty strings")
@@ -2309,7 +2775,9 @@ def validate_config(config):
                     problems.append(
                         f"{name}: {field} must be a number from {minimum} to {maximum}")
         for field in ("job_selector", "title_selector", "link_selector",
-                      "job_location_selector", "wait_for_selector", "css_selector"):
+                      "job_location_selector", "department_selector",
+                      "category_selector", "description_selector",
+                      "wait_for_selector", "css_selector"):
             if field in entry and (not isinstance(entry[field], str) or not entry[field]):
                 problems.append(f"{name}: {field} must be a non-empty string")
         if any(field in entry for field in ("title_selector", "link_selector",
@@ -2367,23 +2835,41 @@ def send_heartbeat(config, state_manager, notifier):
         f"{state_manager.new_jobs_since(7 * 86400)} in last 7 days",
         f"Jobs tracked: {state_manager.jobs_tracked()} | Pending alerts: {state_manager.pending_count()}",
     ]
-    failing = state_manager.failing_now()
+    configured = list(config.get("ats_companies") or []) + list(config.get("custom_pages") or [])
+    names = {entry["name"].casefold() for entry in configured}
+    failing = {name: entry for name, entry in state_manager.failing_now().items()
+               if name.casefold() in names}
     if failing:
         for name, entry in failing.items():
             streak = f"{entry['count']}+" if entry.get("alerted") else str(entry["count"])
             heartbeat.append(f"⚠️ {html.escape(name)}: failing ({streak} consecutive runs)")
     suspects = []
-    for name, entry in (state_manager.state.get("_health") or {}).items():
+    health = {name.casefold(): entry for name, entry in
+              (state_manager.state.get("_health") or {}).items()}
+    now = time.time()
+    for source in configured:
+        name = source["name"]
+        entry = health.get(name.casefold(), {})
+        last_success = _parse_ts(entry.get("last_success"))
+        stale_after = (HEARTBEAT_ATS_STALE_SECONDS if "ats" in source
+                       else HEARTBEAT_PAGE_STALE_SECONDS)
+        if not last_success:
+            suspects.append((name, "no successful check recorded"))
+        elif now - last_success > stale_after:
+            suspects.append((name, f"stale: last successful check {(now - last_success) / 3600:.1f} hours ago"))
         if entry.get("suspect"):
             suspects.append((name, entry["suspect"]))
         elif entry.get("successful_zero_streak", 0) >= 24:
             suspects.append((name, f"{entry['successful_zero_streak']} consecutive successful zero-match runs"))
     for name, reason in suspects:
         heartbeat.append(f"❓ {html.escape(name)}: {html.escape(reason)}")
-    if not failing and not suspects:
+    if not configured:
+        heartbeat.append("No sources configured.")
+    elif not failing and not suspects:
         heartbeat.append("All sources healthy ✅")
-    if not notifier.send("\n".join(heartbeat)):
-        raise RuntimeError("heartbeat could not be delivered to Telegram")
+    for chunk in build_digest([], [], warnings=heartbeat):
+        if not notifier.send(chunk):
+            raise RuntimeError("heartbeat could not be delivered to Telegram")
 
 USAGE = """\
 usage: hybrid_hunter.py [options]
@@ -2628,7 +3114,26 @@ def main():
         for future in as_completed(futures):
             result = future.result()
             result["index"] = futures[future]
+            # Persist completed-source health while other workers are still
+            # fetching. Job dedup and digest assembly remain below, in config
+            # order, and do not mark anything seen before delivery.
+            if not test_mode:
+                name = result["comp"]["name"]
+                error = result["error"]
+                if error is not None:
+                    state_manager.record_failure(name, error)
+                state_manager.record_source_run(
+                    name, result["comp"]["ats"], error is None,
+                    len(result["matches"]) if error is None else None,
+                    result["duration"], result["request_count"], reason=error,
+                    raw_count=result.get("raw_count"))
+                result["recovered"] = (
+                    state_manager.record_success(name) if error is None else False)
             results.append(result)
+            if not test_mode and len(results) % 25 == 0:
+                state_manager.save_if_dirty()
+        if not test_mode:
+            state_manager.save_if_dirty()
 
     # Workers complete out of order, but state/digest updates and the visible
     # result table remain in config order for reproducible Actions summaries.
@@ -2641,24 +3146,14 @@ def main():
         if error is not None:
             print(f"  ❌ {name} ({ats_type}): {error}")
             run_report.append((name, f"❌ {error}"))
-            if not test_mode:
-                state_manager.record_failure(name, error)
-                state_manager.record_source_run(
-                    name, ats_type, False, None, result["duration"],
-                    result["request_count"], reason=error,
-                    raw_count=result.get("raw_count"))
             source_failures += 1
             if not test_mode and completed_ats % 25 == 0:
                 state_manager.save_if_dirty()
             continue
 
         raw_results[name] = result.get("raw_ids", set())
-        if not test_mode:
-            state_manager.record_source_run(
-                name, ats_type, True, len(matches), result["duration"],
-                result["request_count"], raw_count=result.get("raw_count"))
-            if state_manager.record_success(name):
-                recovered.append(name)
+        if result.get("recovered"):
+            recovered.append(name)
         suspect = (
             state_manager.state.get("_health", {}).get(name, {}).get("suspect")
             if not test_mode else None)

@@ -3,6 +3,7 @@ keywords:
 - internship
 - summer
 - new grad
+
 # Word-boundary matching means each surface form needs its own entry:
 # "new grad" does not match "New Graduate", nor "apprentice" "Apprenticeship".
 # Google's India early-career programme is named Apprenticeship, so without
@@ -11,6 +12,14 @@ keywords:
 - new graduate
 - apprentice
 - apprenticeship
+
+# Role relevance is annotation-only in the current rollout.  ``shadow`` keeps
+# every existing title/location-eligible job while exposing a deterministic
+# accepted/review/rejected triage result.  Omit this block (or use ``off``) to
+# disable annotations.  Runtime defaults contain the documented phrase sets;
+# optional positive_phrases/negative_phrases lists can override them.
+role_relevance:
+  mode: shadow
 
 # Titles matching any of these are REJECTED even when a keyword matches.
 # Word-boundary matching, case-insensitive. Edit freely.
@@ -152,6 +161,10 @@ ats_companies:
 - name: Atlassian
   ats: atlassian
   location: India
+  # The feed occasionally emits valid early-career rows with locations: [];
+  # retain them with an explicit "Location not specified" marker rather than
+  # failing the entire source. Unknown locations are never presented as India.
+  allow_unknown_location: true
   categories:
   - Interns
   - Graduates
@@ -203,8 +216,13 @@ ats_companies:
   ats: greenhouse
   slug: zscaler
 - name: Postman
-  ats: greenhouse
-  slug: postman
+  ats: workday
+  tenant: postman
+  wd_host: wd108
+  site: careers
+  # Official Postman careers cache identifies this Workday board; verified
+  # 2026-09-20 after the former Greenhouse board began returning 404.
+  search: internship
 - name: Thoughtworks
   ats: greenhouse
   slug: thoughtworks
@@ -296,8 +314,10 @@ ats_companies:
   slug: squarepointcapital  # Bangalore tech hub, seasonal interns
 # -- India market --
 - name: PhonePe
-  ats: greenhouse
-  slug: phonepe
+  # Verified 2026-09-14: PhonePe's live board is SmartRecruiters, not the
+  # retired Greenhouse slug.
+  ats: smartrecruiters
+  company_id: PHONEPELIMITED
 - name: Cred
   ats: lever
   slug: cred
@@ -358,9 +378,9 @@ ats_companies:
   wd_host: wd1
   site: BlackRock_Professional  # India (Gurgaon/Mumbai) roles
   include_multi_location: true
-  # "intern" also matches internal/international here: total=164 as of
-  # 2026-08-02 and growing, and Workday caps limit at 20 per page.
-  max_pages: 10
+  # "intern" also matches internal/international here: total=206 as of
+  # 2026-09-20 and growing, and Workday caps limit at 20 per page.
+  max_pages: 11
 - name: Adobe
   ats: workday
   tenant: adobe
@@ -473,7 +493,8 @@ ats_companies:
   slug: asana
 # Batch-verified 2026-07-23; category: developer-tools.
 - name: Amplitude
-  ats: ashby
+  # Verified 2026-09-14 from the company's careers page.
+  ats: greenhouse
   slug: amplitude
 # Batch-verified 2026-07-23; category: india-product.
 - name: Navi
@@ -734,8 +755,9 @@ ats_companies:
   slug: adyen
 # Batch-verified 2026-07-23; category: fintech.
 - name: Marqeta
-  ats: greenhouse
-  slug: marqeta
+  # Verified 2026-09-14: Marqeta's current board is Ashby (marqeta-inc).
+  ats: ashby
+  slug: marqeta-inc
 # Batch-verified 2026-07-23; category: fintech.
 - name: Nubank
   ats: ashby
@@ -820,6 +842,9 @@ ats_companies:
   wd_host: wd5
   site: targetcareers
   search: internship
+  # Target currently returns 135 internship results; Workday caps each page
+  # at 20, so four pages (the default) are provably incomplete.
+  max_pages: 7
 # Batch-verified 2026-08-08; category: consumer-tech.
 - name: Expedia Group
   ats: workday
@@ -1307,8 +1332,9 @@ ats_companies:
   slug: color-health
 # Batch-verified 2026-08-08; category: health-tech.
 - name: Spring Health
-  ats: ashby
-  slug: spring-health
+  # Verified 2026-09-14: corporate roles are on Greenhouse (springhealth66).
+  ats: greenhouse
+  slug: springhealth66
 # Batch-verified 2026-08-08; category: health-tech.
 - name: Included Health
   ats: lever
@@ -1417,10 +1443,6 @@ ats_companies:
 - name: Ginkgo Bioworks
   ats: greenhouse
   slug: ginkgobioworks
-# Batch-verified 2026-08-08; category: biotech.
-- name: 10x Genomics
-  ats: greenhouse
-  slug: 10xgenomics
 # Batch-verified 2026-08-08; category: nonprofit.
 - name: Chan Zuckerberg Initiative
   ats: greenhouse
@@ -1498,8 +1520,9 @@ ats_companies:
   search: internship
 # Batch-verified 2026-08-08; category: aerospace.
 - name: Mach Industries
-  ats: ashby
-  slug: mach
+  # Verified 2026-09-14 from the company's careers page.
+  ats: greenhouse
+  slug: machindustries
 # Batch-verified 2026-08-08; category: health-tech.
 - name: Cityblock Health
   ats: workday
@@ -1613,7 +1636,9 @@ ats_companies:
   slug: lyrahealth
 # Batch-verified 2026-08-08; category: payload-review.
 - name: Iterable
-  ats: ashby
+  # Greenhouse had 16 live postings on 2026-09-20 after the former Ashby
+  # board began returning 404.
+  ats: greenhouse
   slug: iterable
 # Batch-verified 2026-08-08; category: payload-review.
 - name: Qualtrics
@@ -1661,6 +1686,18 @@ ats_companies:
   slug: hs
 
 custom_pages:
+# 10x moved from Greenhouse to Kula in 2026. Verified 2026-09-14. Kula renders stable semantic
+# card/link elements, but its generated CSS classes are intentionally avoided.
+- name: 10x Genomics
+  url: https://careers.kula.ai/10xgenomics
+  wait_for_selector: '#open-roles .chakra-card'
+  job_selector: '#open-roles .chakra-card'
+  title_selector: 'span > div:nth-child(2) p'
+  job_location_selector: 'span > div:nth-child(3) > div:first-child p'
+  link_selector: "a[href*='/10xgenomics/']"
+  id_regex: '/(\d+)/?$'
+  keyword_filter: true
+  location_filter: true
 # The old greenhouse:linkedin slug is "LI Test Company", not LinkedIn. Track
 # LinkedIn's official India engineering-internship program page instead. It is
 # a landing page rather than a stable job-card board, so alert only after a

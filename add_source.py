@@ -21,10 +21,16 @@ live verification before editing config. Empty boards are rejected unless
 scope — see .agents/skills/add-source for that decision tree.
 """
 import argparse
+import copy
+import hashlib
+import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
+from collections import defaultdict
 
 import yaml
 
@@ -34,7 +40,7 @@ CONFIG_FILE = "config.yaml"
 STATE_FILE = "state.json"
 
 
-def build_explicit_entry(args):
+def build_explicit_entry(args, verify_identity=False):
     """Build and live-verify an entry from explicit --ats flags."""
     name, ats = args.name, args.ats
     if args.field:
@@ -63,6 +69,10 @@ def build_explicit_entry(args):
         entry = {"name": name, "ats": ats, **fields}
         # Generic fields are intentionally verbatim; the post-insert --test
         # is the authoritative structural/live verification step.
+        if verify_identity:
+            identity_ok, evidence = probe.check_entry_identity(name, entry)
+            if identity_ok is not True:
+                raise SystemExit(f"❌ Explicit fields did not verify {name!r}: {evidence}")
         return entry, None
     if ats in ("greenhouse", "ashby", "lever"):
         if not args.slug:
@@ -148,7 +158,11 @@ def resolve_entry(args):
         # count so the normal post-insert --test remains the source of truth.
         return parsed, None
     if args.ats:
-        return build_explicit_entry(args)
+        entry, count = build_explicit_entry(args, verify_identity=False)
+        identity_ok, evidence = probe.check_entry_identity(name, entry)
+        if identity_ok is not True:
+            raise SystemExit(f"❌ Explicit fields did not verify {name!r}: {evidence}")
+        return entry, count
     if args.url:
         entry, info = probe.probe_url(args.url, name=args.name)
         if not entry:
@@ -249,10 +263,258 @@ def run_hunter(flags, name):
     return ok, proc
 
 
+def _read_bytes(path):
+    try:
+        with open(path, "rb") as stream:
+            return stream.read()
+    except FileNotFoundError:
+        return None
+
+
+def _atomic_write(path, data, expected=None, backup_suffix=".bak"):
+    """Atomically write a file, refusing to overwrite a concurrent edit."""
+    current = _read_bytes(path)
+    if expected is not None and current != expected:
+        raise RuntimeError(f"concurrent change detected in {path}; refusing overwrite")
+    directory = os.path.dirname(os.path.abspath(path)) or "."
+    os.makedirs(directory, exist_ok=True)
+    if current is not None:
+        backup = path + backup_suffix
+        # Keep the most recent recoverable copy without exposing a partial file.
+        fd, temp_backup = tempfile.mkstemp(prefix=".backup-", dir=directory)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(current)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temp_backup, backup)
+        finally:
+            if os.path.exists(temp_backup):
+                os.unlink(temp_backup)
+    fd, temp_path = tempfile.mkstemp(prefix=".atomic-", dir=directory)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data if isinstance(data, bytes) else data.encode("utf-8"))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temp_path, path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def _restore_bytes(path, original, expected):
+    """Restore transaction input while preserving a failed current version."""
+    current = _read_bytes(path)
+    if current != expected:
+        # A human/CI edit after the failed operation wins; never overwrite it.
+        raise RuntimeError(f"concurrent change detected while rolling back {path}")
+    if original is None:
+        if current is not None:
+            failed = path + ".failed"
+            _atomic_write(failed, current, expected=_read_bytes(failed), backup_suffix=".failed.bak")
+            os.unlink(path)
+        return
+    _atomic_write(path, original, expected=current)
+
+
+def _entry_target(entry):
+    """Adapter-specific board target, excluding human name and query scope."""
+    if not isinstance(entry, dict):
+        return None
+    ats = entry.get("ats")
+    fields = {
+        "greenhouse": ("slug",), "ashby": ("slug",), "lever": ("slug",),
+        "workday": ("tenant", "wd_host", "site"),
+        "smartrecruiters": ("company_id",), "workable": ("account",),
+        "eightfold": ("base_url", "domain"), "jsonld": ("url",),
+        "oracle_hcm": ("host", "site_number"),
+    }.get(ats)
+    if fields:
+        return (ats, *(str(entry.get(field) or "").casefold() for field in fields))
+    # For global adapters there is no per-company board target; keep the ATS
+    # and stable identifying fields so a second scope is reviewed explicitly.
+    return (ats, tuple(sorted((key, str(value).casefold()) for key, value in entry.items()
+                              if key not in {"name", "keywords"})))
+
+
+def _entry_scope(entry):
+    if not isinstance(entry, dict):
+        return ()
+    scope_keys = ("query", "queries", "search", "keyword", "location", "country",
+                  "country_code", "categories", "seniority", "include_multi_location",
+                  "location_id", "max_pages")
+    return tuple((key, repr(entry.get(key))) for key in scope_keys if key in entry)
+
+
+def duplicate_status(entry, config):
+    """Return exact duplicate, same target/different scope, or no duplicate.
+
+    Aliases are treated as names for human matching, while target and scope are
+    compared structurally so two Workday searches cannot be auto-merged.
+    """
+    entries = list(config.get("ats_companies") or []) + list(config.get("custom_pages") or [])
+    target, scope = _entry_target(entry), _entry_scope(entry)
+    names = {str(entry.get("name", "")).casefold(),
+             *(str(alias).casefold() for alias in entry.get("aliases") or [])}
+    exact = []
+    target_hits = []
+    for existing in entries:
+        if not isinstance(existing, dict):
+            continue
+        existing_names = {str(existing.get("name", "")).casefold(),
+                          *(str(alias).casefold() for alias in existing.get("aliases") or [])}
+        same_target = target is not None and _entry_target(existing) == target
+        same_scope = _entry_scope(existing) == scope
+        if same_target:
+            target_hits.append(existing)
+        # The adapter target plus scope is authoritative.  Aliases improve
+        # human-facing matching but a renamed source pointing at the exact
+        # same board must still be treated as already tracked.
+        if same_target and same_scope:
+            exact.append(existing)
+    if exact:
+        return {"status": "exact_match", "matches": [e.get("name") for e in exact]}
+    if target_hits:
+        return {"status": "different_scope_review_required",
+                "matches": [e.get("name") for e in target_hits]}
+    return {"status": "new", "matches": []}
+
+
+def _classify_preview_job(job, config):
+    try:
+        import hybrid_hunter as hh
+        classifier = getattr(hh, "classify_role", None)
+        if classifier is None:
+            return {"verdict": "unknown", "reason": "classify_role is unavailable",
+                    "evidence": []}
+        value = classifier(job, config)
+        if not isinstance(value, dict) or not isinstance(value.get("verdict"), str):
+            return {"verdict": "unknown", "reason": "invalid classify_role result", "evidence": []}
+        return {"verdict": value["verdict"],
+                "reason": str(value.get("reason", "")),
+                "evidence": list(value.get("evidence") or [])}
+    except Exception as exc:
+        return {"verdict": "unknown", "reason": f"classification failed: {exc}", "evidence": []}
+
+
+def preview_source(args):
+    """Probe and read one proposed ATS entry without touching config/state."""
+    import hybrid_hunter as hh
+    config_bytes = _read_bytes(CONFIG_FILE)
+    if config_bytes is None:
+        raise SystemExit(f"❌ Could not read {CONFIG_FILE}")
+    try:
+        config = yaml.safe_load(config_bytes.decode("utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise SystemExit(f"❌ Could not parse {CONFIG_FILE}: {exc}") from exc
+    name = args.name.strip() if isinstance(args.name, str) and args.name.strip() else None
+    source_url = args.url or args.from_job_url
+    # A URL-only preview may discover a board, but its slug/account is not a
+    # company name. Keep it as a resumable draft unless a caller supplied name.
+    if source_url:
+        try:
+            entry, info = probe.probe_url(source_url, name=name)
+        except Exception as exc:
+            entry, info = None, f"probe failed: {exc}"
+        if not entry:
+            row = {"name": name or "", "status": "candidate", "probe_status": "needs_review",
+                   "actionable": False, "missing_fields": (["name"] if not name else []),
+                   "next_action": "Provide a verified careers URL or supported ATS fields",
+                   "evidence": [str(info)]}
+            report = {"version": 1, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                      "source": source_url, "summary": {"total": 1, "actionable": 0},
+                      "candidates": [row]}
+            return report
+    else:
+        try:
+            entry, info = resolve_entry(args)
+        except SystemExit as exc:
+            row = {"name": name or "", "status": "candidate", "probe_status": "needs_review",
+                   "actionable": False, "missing_fields": (["name"] if not name else []),
+                   "next_action": "Resolve the ambiguity with --url or reviewed ATS fields",
+                   "evidence": [str(exc)]}
+            return {"version": 1, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "source": name or "preview", "summary": {"total": 1, "actionable": 0},
+                    "candidates": [row]}
+    if not name:
+        row = {"name": "", "status": "candidate", "probe_status": "needs_review",
+               "suggested_entry": entry, "identity_evidence": [], "actionable": False,
+               "missing_fields": ["name"], "next_action": "Re-run with the intended company name",
+               "evidence": ["URL recognized, but its ATS identifier is not a verified company name"]}
+        return {"version": 1, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "source": source_url or "preview", "summary": {"total": 1, "actionable": 0},
+                "candidates": [row]}
+
+    try:
+        identity_ok, identity_evidence = probe.check_entry_identity(name, entry)
+    except Exception as exc:
+        identity_ok, identity_evidence = None, f"identity check failed: {exc}"
+    entry = dict(entry)
+    entry["name"] = name
+    proposed = copy.deepcopy(config)
+    proposed.setdefault("ats_companies", []).append(entry)
+    duplicate = duplicate_status(entry, config)
+    row = {"name": name, "status": "probed", "probe_status": "verified_endpoint" if identity_ok is True else "needs_review",
+           "suggested_entry": entry, "identity_evidence": [identity_evidence] if identity_evidence else [],
+           "duplicate_status": duplicate["status"], "duplicate_matches": duplicate["matches"],
+           "raw_count": None, "eligible_count": 0, "relevance_counts": {}, "examples": {},
+           "actionable": identity_ok is True and duplicate["status"] == "new"}
+    if identity_ok is not True:
+        row.update({"actionable": False, "missing_fields": ["identity_evidence"],
+                    "next_action": "Confirm the official company identity before applying"})
+        return {"version": 1, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "source": source_url or name, "summary": {"total": 1, "actionable": 0},
+                "candidates": [row]}
+    semaphores = defaultdict(lambda: __import__("threading").Semaphore(1))
+    try:
+        result = hh._hunt_ats_entry(entry, proposed, semaphores)
+    except Exception as exc:
+        result = {"matches": [], "error": str(exc), "raw_count": None}
+    row["raw_count"] = result.get("raw_count")
+    if result.get("error"):
+        row.update({"probe_status": "failed", "actionable": False,
+                    "missing_fields": ["successful_full_read"],
+                    "next_action": "Retry preview after the board is readable",
+                    "evidence": [str(result["error"])]})
+    else:
+        counts = {}
+        examples = {}
+        for job in result.get("matches") or []:
+            classified = _classify_preview_job(job, proposed)
+            verdict = classified["verdict"]
+            counts[verdict] = counts.get(verdict, 0) + 1
+            examples.setdefault(verdict, [])
+            if len(examples[verdict]) < 5:
+                examples[verdict].append({"id": job.get("id"), "title": job.get("title"),
+                                          "location": job.get("location"), "url": job.get("url"),
+                                          "reason": classified["reason"], "evidence": classified["evidence"]})
+        row["relevance_counts"] = counts
+        # _hunt_ats_entry already applies the production keyword/location
+        # filters; classification is a separate, mode-independent review
+        # layer and must not redefine this count.
+        row["eligible_count"] = len(result.get("matches") or [])
+        row["examples"] = examples
+        row["evidence"] = [f"full ATS read returned {len(result.get('matches') or [])} eligible-filter matches"]
+        if duplicate["status"] != "new":
+            row.update({"actionable": False, "missing_fields": ["duplicate_review"],
+                        "next_action": "Review existing source target/scope before applying"})
+    report = {"version": 1, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+              "source": source_url or name, "summary": {"total": 1, "actionable": int(row["actionable"])},
+              "candidates": [row]}
+    return report
+
+
 def batch_command(candidate, no_seed=False, allow_empty=False):
     """Build a single-source command for a reviewed batch candidate."""
     if candidate.get("approved") is not True:
         return None, "not approved"
+    if candidate.get("actionable") is False:
+        return None, candidate.get("next_action") or "preview row is non-actionable"
+    if candidate.get("duplicate_status") not in (None, "new"):
+        return None, "preview found a duplicate target/scope; review required"
+    if candidate.get("probe_status") in {"needs_review", "failed", "unsupported"}:
+        return None, candidate.get("next_action") or "preview evidence requires review"
     entry = candidate.get("suggested_entry")
     if not isinstance(entry, dict):
         return None, "missing suggested_entry; run probe.py --batch first"
@@ -461,9 +723,10 @@ def run_batch(path, apply=False, no_seed=False, approved_names=None,
             candidate["activated_at"] = now
             if isinstance(candidate.get("suggested_entry"), dict):
                 candidate["active_source"] = candidate["suggested_entry"]
-        with open(path, "w", encoding="utf-8") as stream:
-            yaml.safe_dump({"version": 1, "candidates": candidates},
-                           stream, sort_keys=False, width=1000)
+        original_ledger = _read_bytes(path)
+        rendered = yaml.safe_dump({"version": 1, "candidates": candidates},
+                                  sort_keys=False, width=1000)
+        _atomic_write(path, rendered, expected=original_ledger)
     if failures:
         raise SystemExit(
             "❌ Batch completed with failures: " + ", ".join(failures)
@@ -517,7 +780,9 @@ def main():
     parser.add_argument("--auto-approve-verified", action="store_true",
                         help="With --batch, approve rows whose probe_status is verified_endpoint")
     parser.add_argument("--review-out", metavar="PATH",
-                        help="With --batch, write the review/action report as YAML or JSON")
+                        help="With --batch or --preview, write the review report as YAML or JSON")
+    parser.add_argument("--preview", action="store_true",
+                        help="Probe and classify one proposed source without changing config/state")
     parser.add_argument("--sync-active", action="store_true",
                         help="With --batch, update YAML statuses from current config and exit")
     parser.add_argument("--url", help="Careers/board URL to probe instead of name-based slug guessing")
@@ -548,21 +813,30 @@ def main():
                         help="Allow a verified board with zero live postings")
     args = parser.parse_args()
 
+    # URL-only positional convenience for preview (and for future callers): a
+    # concrete posting URL is input, never an inferred company name.
+    if args.name and probe._looks_like_url(args.name) and not args.url and not args.from_job_url:
+        args.from_job_url, args.name = args.name, None
+
     if args.batch:
         if args.name:
             parser.error("name cannot be combined with --batch")
+        if args.preview:
+            parser.error("--preview is for one source and cannot be combined with --batch")
         single_only = (
             args.url, args.from_job_url, args.ats, bool(args.field), args.slug, args.tenant, args.site,
             args.wd_host != "wd5", args.search, args.max_pages,
             args.base_url, args.domain, args.company_id, args.country, args.query,
             args.account, args.comment,
-            args.auto_approve_verified, args.review_out,
         )
         if any(single_only):
             parser.error("single-source ATS flags cannot be combined with --batch")
         if args.sync_active:
-            if args.apply or args.approve:
-                parser.error("--sync-active cannot be combined with --apply or --approve")
+            if (args.apply or args.approve or args.auto_approve_verified
+                    or args.review_out):
+                parser.error(
+                    "--sync-active cannot be combined with --apply, --approve, "
+                    "--auto-approve-verified, or --review-out")
             sync_active_candidates(args.batch)
             return
         run_batch(
@@ -575,17 +849,40 @@ def main():
         parser.error("--apply requires --batch")
     if args.approve:
         parser.error("--approve requires --batch")
-    if args.auto_approve_verified or args.review_out:
-        parser.error("--auto-approve-verified and --review-out require --batch")
+    if args.auto_approve_verified:
+        parser.error("--auto-approve-verified requires --batch")
     if args.sync_active:
         parser.error("--sync-active requires --batch")
-    if not args.name:
+    if not args.name and not args.from_job_url and not args.url:
         parser.error("name is required unless --batch is used")
+    if not args.name and not args.preview:
+        parser.error("a company name is required (URL-only input is supported with --preview)")
     if args.field and not args.ats:
         parser.error("--field requires --ats")
 
-    with open(CONFIG_FILE) as f:
-        config_text = f.read()
+    if args.preview:
+        if args.no_seed or args.allow_empty or args.comment:
+            parser.error("--preview cannot be combined with --no-seed, --allow-empty, or --comment")
+        if args.url and args.from_job_url:
+            parser.error("--url and --from-job-url are mutually exclusive")
+        report = preview_source(args)
+        if args.review_out:
+            try:
+                probe.write_report(report, args.review_out)
+            except (OSError, ValueError) as exc:
+                raise SystemExit(f"❌ {exc}") from exc
+            print(f"Review report written to {args.review_out}")
+        else:
+            print(yaml.safe_dump(report, sort_keys=False, width=1000).rstrip())
+        return
+
+    if args.review_out:
+        parser.error("--review-out requires --batch or --preview")
+
+    original_config_bytes = _read_bytes(CONFIG_FILE)
+    if original_config_bytes is None:
+        raise SystemExit(f"❌ Could not read {CONFIG_FILE}")
+    config_text = original_config_bytes.decode("utf-8")
     config = yaml.safe_load(config_text)
     taken = {e["name"].casefold()
              for e in (config.get("ats_companies") or []) + (config.get("custom_pages") or [])}
@@ -605,47 +902,46 @@ def main():
 
     comment = args.comment or (
         f"Verified by add_source.py on {time.strftime('%Y-%m-%d', time.gmtime())}.")
-    with open(CONFIG_FILE, "w") as f:
-        f.write(insert_entry(config_text, entry, comment=comment))
+    proposed_config_text = insert_entry(config_text, entry, comment=comment)
+    state_before = _read_bytes(STATE_FILE)
+    try:
+        _atomic_write(CONFIG_FILE, proposed_config_text, expected=original_config_bytes)
 
-    print(f"🧪 Verifying: hybrid_hunter.py --test --ats-only --company \"{args.name}\"")
-    ok, proc = run_hunter(["--test", "--ats-only"], args.name)
-    for line in proc.stdout.splitlines():
-        if args.name in line or "match" in line.lower():
-            print(f"   {line.strip()}")
-    if not ok:
-        with open(CONFIG_FILE, "w") as f:
-            f.write(config_text)
-        print(proc.stdout)
-        print(proc.stderr, file=sys.stderr)
-        raise SystemExit(f"❌ --test run failed — rolled {CONFIG_FILE} back. Entry NOT added.")
-
-    if args.no_seed:
-        print(f"⏭️  Skipped seeding. First live run will alert on every open match at {args.name}.")
-    else:
-        print(f"🌱 Baselining: hybrid_hunter.py --seed --ats-only --company \"{args.name}\"")
-        state_existed = os.path.exists(STATE_FILE)
-        state_before = None
-        if state_existed:
-            with open(STATE_FILE, "rb") as stream:
-                state_before = stream.read()
-        ok, proc = run_hunter(["--seed", "--ats-only"], args.name)
+        print(f"🧪 Verifying: hybrid_hunter.py --test --ats-only --company \"{args.name}\"")
+        ok, proc = run_hunter(["--test", "--ats-only"], args.name)
+        for line in proc.stdout.splitlines():
+            if args.name in line or "match" in line.lower():
+                print(f"   {line.strip()}")
         if not ok:
-            with open(CONFIG_FILE, "w") as f:
-                f.write(config_text)
-            if state_existed:
-                with open(STATE_FILE, "wb") as stream:
-                    stream.write(state_before)
-            elif os.path.exists(STATE_FILE):
-                os.unlink(STATE_FILE)
             print(proc.stdout)
             print(proc.stderr, file=sys.stderr)
-            raise SystemExit(
-                f"❌ Seeding failed — rolled {CONFIG_FILE} and state.json back. "
-                "Entry NOT added.")
-        for line in proc.stdout.splitlines():
-            if line.startswith("🌱"):
-                print(f"   {line.strip()}")
+            raise SystemExit(f"❌ --test run failed — rolled {CONFIG_FILE} back. Entry NOT added.")
+
+        if args.no_seed:
+            print(f"⏭️  Skipped seeding. First live run will alert on every open match at {args.name}.")
+        else:
+            print(f"🌱 Baselining: hybrid_hunter.py --seed --ats-only --company \"{args.name}\"")
+            ok, proc = run_hunter(["--seed", "--ats-only"], args.name)
+            if not ok:
+                print(proc.stdout)
+                print(proc.stderr, file=sys.stderr)
+                raise SystemExit(
+                    f"❌ Seeding failed — rolled {CONFIG_FILE} and state.json back. "
+                    "Entry NOT added.")
+            for line in proc.stdout.splitlines():
+                if line.startswith("🌱"):
+                    print(f"   {line.strip()}")
+    except BaseException:
+        # Roll back all writes, including exceptions and Ctrl-C. Each restore
+        # uses the bytes currently on disk as its expected value; if another
+        # process edited a file while the probe was running, refuse to clobber
+        # that change and leave the recoverable .bak copy for investigation.
+        try:
+            _restore_bytes(CONFIG_FILE, original_config_bytes, _read_bytes(CONFIG_FILE))
+            _restore_bytes(STATE_FILE, state_before, _read_bytes(STATE_FILE))
+        except BaseException as rollback_error:
+            raise RuntimeError(f"transaction rollback refused: {rollback_error}") from rollback_error
+        raise
 
     print(f"\n✅ {args.name} added and verified. Commit config.yaml"
           + ("" if args.no_seed else " and state.json") + " to make it live.")
